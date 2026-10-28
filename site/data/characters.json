@@ -34,7 +34,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for a closed outline with a short stroke inside.",
-    "hintEs": "Busca un contorno cerrado con un trazo corto dentro."
+    "hintEs": "Busca un contorno cerrado con un trazo corto dentro.",
+    "caseTitleEn": "The sun’s outline: a clue for 日",
+    "caseTitleEs": "El contorno del sol: una pista para 日",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 日",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 日",
+    "provenanceEn": "Cropped from slide 9 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 9 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "moon",
@@ -71,7 +81,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Notice the curved, crescent-shaped outline.",
-    "hintEs": "Fíjate en el contorno curvo, con forma de creciente."
+    "hintEs": "Fíjate en el contorno curvo, con forma de creciente.",
+    "caseTitleEn": "A crescent moon: a clue for 月",
+    "caseTitleEs": "Una luna creciente: una pista para 月",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 月",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 月",
+    "provenanceEn": "Cropped from slide 11 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 11 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "mountain",
@@ -108,7 +128,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for a row of peaks of different heights.",
-    "hintEs": "Busca varios picos de distintas alturas."
+    "hintEs": "Busca varios picos de distintas alturas.",
+    "caseTitleEn": "Mountain peaks: a clue for 山",
+    "caseTitleEs": "Las cumbres: una pista para 山",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 山",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 山",
+    "provenanceEn": "Cropped from slide 7 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 7 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "water",
@@ -145,7 +175,17 @@
     "contentWarningEn": "The PPT uses two curved lines as a water-flow association. This has not been verified as a historical form of 水.",
     "contentWarningEs": "El PPT usa dos líneas curvas para evocar agua que fluye. No se han verificado como una forma histórica de 水.",
     "hintEn": "Look for curved lines suggesting a flowing movement.",
-    "hintEs": "Busca líneas curvas que sugieran movimiento fluido."
+    "hintEs": "Busca líneas curvas que sugieran movimiento fluido.",
+    "caseTitleEn": "Flowing lines: a memory aid for 水",
+    "caseTitleEs": "Líneas que fluyen: una ayuda para recordar 水",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 水",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 水",
+    "provenanceEn": "Cropped from slide 29 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 29 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "wood",
@@ -182,7 +222,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Compare the branches above, the central trunk and the roots below.",
-    "hintEs": "Compara las ramas arriba, el tronco central y las raíces abajo."
+    "hintEs": "Compara las ramas arriba, el tronco central y las raíces abajo.",
+    "caseTitleEn": "Trunk, branches and roots: a clue for 木",
+    "caseTitleEs": "Tronco, ramas y raíces: una pista para 木",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 木",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 木",
+    "provenanceEn": "Cropped from slide 19 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 19 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "fire",
@@ -219,7 +269,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for lines rising and flickering upward.",
-    "hintEs": "Busca líneas que suben y parecen moverse como llamas."
+    "hintEs": "Busca líneas que suben y parecen moverse como llamas.",
+    "caseTitleEn": "Rising flames: a clue for 火",
+    "caseTitleEs": "Llamas ascendentes: una pista para 火",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 火",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 火",
+    "provenanceEn": "Cropped from slide 31 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 31 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "person",
@@ -256,7 +316,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for a standing figure seen from the side, with an arm pointing down.",
-    "hintEs": "Busca una figura de perfil, de pie y con un brazo hacia abajo."
+    "hintEs": "Busca una figura de perfil, de pie y con un brazo hacia abajo.",
+    "caseTitleEn": "A person in profile: a clue for 人",
+    "caseTitleEs": "Una persona de perfil: una pista para 人",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 人",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 人",
+    "provenanceEn": "Cropped from slide 33 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 33 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "eye",
@@ -293,7 +363,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for an outer outline with a pupil inside.",
-    "hintEs": "Busca un contorno exterior con una pupila dentro."
+    "hintEs": "Busca un contorno exterior con una pupila dentro.",
+    "caseTitleEn": "An eye’s outline: a clue for 目",
+    "caseTitleEs": "El contorno de un ojo: una pista para 目",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 目",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 目",
+    "provenanceEn": "Cropped from slide 13 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 13 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "mouth",
@@ -330,7 +410,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for a small, simple enclosure without a line across its middle.",
-    "hintEs": "Busca un contorno pequeño y sencillo, sin una línea en el centro."
+    "hintEs": "Busca un contorno pequeño y sencillo, sin una línea en el centro.",
+    "caseTitleEn": "An open mouth: a clue for 口",
+    "caseTitleEs": "Una boca abierta: una pista para 口",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 口",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 口",
+    "provenanceEn": "Cropped from slide 15 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 15 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "field",
@@ -367,7 +457,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for an outer boundary divided by crossing paths.",
-    "hintEs": "Busca un límite exterior dividido por caminos que se cruzan."
+    "hintEs": "Busca un límite exterior dividido por caminos que se cruzan.",
+    "caseTitleEn": "Divided fields: a clue for 田",
+    "caseTitleEs": "Campos divididos: una pista para 田",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "Academia Sinica · Chinese character database · 田",
+    "sourceTitleEs": "Academia Sinica · Base de caracteres chinos · 田",
+    "provenanceEn": "Cropped from slide 23 of the supplied teaching deck; the date and archaeological source of the form are unconfirmed.",
+    "provenanceEs": "Recortado de la diapositiva 23 del material proporcionado; no se han confirmado la fecha ni la procedencia arqueológica de la forma.",
+    "reviewScopeEn": "Meanings and pictorial explanations were checked against references. The slide images, historical forms, source attribution and reuse rights still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados y las explicaciones visuales. Las imágenes, las formas históricas, la procedencia y los permisos de reutilización aún requieren revisión experta."
   },
   {
     "id": "forest",
@@ -404,7 +504,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for two similar tree-shaped components side by side.",
-    "hintEs": "Busca dos componentes parecidos a árboles, uno al lado del otro."
+    "hintEs": "Busca dos componentes parecidos a árboles, uno al lado del otro.",
+    "caseTitleEn": "Two tree components: a clue for 林",
+    "caseTitleEs": "Dos componentes de árbol: una pista para 林",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 林",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 林",
+    "provenanceEn": "Cropped from slide 21 of the supplied teaching deck; the specific historical character form is not authenticated.",
+    "provenanceEs": "Recortado de la diapositiva 21 del material proporcionado; la forma histórica concreta no se ha autenticado.",
+    "reviewScopeEn": "Meanings, form explanations and their distinction from memory aids were checked against references. Historical forms, source attribution and reuse rights for the slide images still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados, las explicaciones de la forma y su distinción de las ayudas de memoria. Las formas históricas, la procedencia y los permisos de las imágenes aún requieren revisión experta."
   },
   {
     "id": "big",
@@ -441,7 +551,17 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Compare the front-facing body outline with the arms extending outward.",
-    "hintEs": "Compara la figura de frente con los brazos extendidos."
+    "hintEs": "Compara la figura de frente con los brazos extendidos.",
+    "caseTitleEn": "Arms spread wide: a memory aid for 大",
+    "caseTitleEs": "Brazos abiertos: una ayuda para recordar 大",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 大",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 大",
+    "provenanceEn": "Cropped from slide 53 of the supplied teaching deck; the specific historical character form is not authenticated.",
+    "provenanceEs": "Recortado de la diapositiva 53 del material proporcionado; la forma histórica concreta no se ha autenticado.",
+    "reviewScopeEn": "Meanings, form explanations and their distinction from memory aids were checked against references. Historical forms, source attribution and reuse rights for the slide images still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados, las explicaciones de la forma y su distinción de las ayudas de memoria. Las formas históricas, la procedencia y los permisos de las imágenes aún requieren revisión experta."
   },
   {
     "id": "martial",
@@ -478,6 +598,16 @@
     "contentWarningEn": "This PPT sketch supports visual learning; it has not been authenticated as a specific historical character form.",
     "contentWarningEs": "Este dibujo del PPT ayuda a aprender por asociación; no se ha autenticado como una forma histórica concreta.",
     "hintEn": "Look for a weapon-shaped component combined with a foot-shaped one.",
-    "hintEs": "Busca la combinación de un componente con forma de arma y otro con forma de pie."
+    "hintEs": "Busca la combinación de un componente con forma de arma y otro con forma de pie.",
+    "caseTitleEn": "Foot and weapon components: a clue for 武",
+    "caseTitleEs": "Componentes de pie y arma: una pista para 武",
+    "ancientLabelEn": "Teaching sketch from the slides",
+    "ancientLabelEs": "Dibujo didáctico de las diapositivas",
+    "sourceTitleEn": "CUHK · Multi-function Chinese Character Database · 武",
+    "sourceTitleEs": "CUHK · Base multifuncional de caracteres chinos · 武",
+    "provenanceEn": "Cropped from slide 59 of the supplied teaching deck; the specific historical character form is not authenticated.",
+    "provenanceEs": "Recortado de la diapositiva 59 del material proporcionado; la forma histórica concreta no se ha autenticado.",
+    "reviewScopeEn": "Meanings, form explanations and their distinction from memory aids were checked against references. Historical forms, source attribution and reuse rights for the slide images still await expert review.",
+    "reviewScopeEs": "Se contrastaron los significados, las explicaciones de la forma y su distinción de las ayudas de memoria. Las formas históricas, la procedencia y los permisos de las imágenes aún requieren revisión experta."
   }
 ]
