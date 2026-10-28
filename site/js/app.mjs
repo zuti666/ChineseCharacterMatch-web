@@ -31,6 +31,8 @@ let characters = [], progress = emptyProgress(), user = null, language = 'zh', v
 let game, lesson = 'lesson1', featuredId = 'mountain', roundStarted = Date.now(), roundSaved = false;
 let filter = 'all', search = '', accountAvailable = false, storageOK = true, feedbackKey = 'ready', feedbackKind = '';
 let busyAnimation = false, roundVersion = 0, saveQueue = Promise.resolve(), syncError = false, pendingSaves = 0, toastTimer;
+let serviceInfo = {storage:'sqlite', deploymentMode:'local', databaseExpiresAt:null};
+const cloudService = () => serviceInfo.storage === 'postgres' || serviceInfo.deploymentMode === 'trial';
 const LESSONS = {lesson1:['sun','moon','mountain','wood'], lesson2:['fire','person','eye','mouth'], lesson3:['forest','big','martial','field']};
 const t = (key, values = {}) => Object.entries(values).reduce((text, [k, v]) => text.replaceAll(`{${k}}`, v), dictionaries[language][key] || dictionaries.zh[key] || key);
 const byId = id => characters.find(c => c.id === id);
@@ -72,7 +74,13 @@ function saveProgress() {
   });
   return saveQueue;
 }
-function saveLabel() {return user ? pendingSaves ? t('saving') : syncError ? t('saveError') : t('synced') : storageOK ? t('storage') : t('storageError');}
+function saveLabel() {return user ? pendingSaves ? t('saving') : syncError ? t('saveError') : t(cloudService()?'syncedCloud':'synced') : storageOK ? t('storage') : t('storageError');}
+function trialNotice() {
+  if (serviceInfo.deploymentMode !== 'trial') return '';
+  const date = serviceInfo.databaseExpiresAt ? new Date(serviceInfo.databaseExpiresAt) : null;
+  const expiry = date && !Number.isNaN(date.getTime()) ? t('trialExpiry',{date:escape(date.toLocaleDateString(language==='zh'?'zh-CN':language))}) : t('trialDuration');
+  return `<div class="info-banner trial-banner"><span><strong>${t('cloudTrial')}</strong> · ${expiry} ${t('trialExportNote')}</span><button class="text-button" data-action="export">${icon('export')}${t('export')}</button></div>`;
+}
 function updateSaveState() {
   const node = $('#save-state'); if (node) {node.innerHTML = `${icon(syncError ? 'refresh' : 'check')} ${escape(saveLabel())}`; node.dataset.action = syncError ? 'retry' : '';}
 }
@@ -94,9 +102,9 @@ function shell() {
     <aside class="sidebar"><div class="brand"><span class="brand-stamp">字</span><div class="brand-name">字遇<small>HANZI ENCOUNTERS</small></div></div>
     <div class="nav-label">${t('learning')}</div><nav class="nav" aria-label="${t('learning')}">${nav.map(([name,i])=>`<button data-view="${name}" class="${view===name?'active':''}" ${view===name?'aria-current="page"':''}>${icon(i)}<span>${t(name)}</span></button>`).join('')}</nav>
     <div class="sidebar-note">${icon('sprout')}<p>${language==='zh'?'一笔一画，<br>遇见汉字的来处。':language==='es'?'Cada trazo,<br>un descubrimiento.':'Every little stroke,<br>a new discovery.'}</p><small>GROW A LITTLE, EVERY DAY</small></div>
-    <div class="user-box"><div class="avatar">${user?escape(user.username.slice(0,1)):'初'}</div><div class="user-text"><b>${escape(user?.username || t('guest'))}</b><small>${user?t('serverSave'):t('localSave')}</small></div><button data-action="account" aria-label="${t('account')}">${icon('user')}</button></div></aside>
+    <div class="user-box"><div class="avatar">${user?escape(user.username.slice(0,1)):'初'}</div><div class="user-text"><b>${escape(user?.username || t('guest'))}</b><small>${user?t(cloudService()?'serverSaveCloud':'serverSave'):t('localSave')}</small></div><button data-action="account" aria-label="${t('account')}">${icon('user')}</button></div></aside>
     <main class="main"><header class="topbar"><div class="mobile-brand"><span class="brand-stamp">字</span>字遇</div><div class="breadcrumb">${icon('leaf')}<span>${t('explore')}</span><span>/</span><span>${t(view)}</span></div><div class="top-tools"><span class="version">PPT · PROTOTYPE 0.1</span><select class="language" id="language" aria-label="Language / 语言"><option value="zh" ${language==='zh'?'selected':''}>中文</option><option value="en" ${language==='en'?'selected':''}>English</option><option value="es" ${language==='es'?'selected':''}>Español</option></select><button class="round-icon" data-action="account" aria-label="${user?t('account'):t('login')}">${icon('user')}</button></div></header>
-    <div id="view-content"></div><footer class="page-footer"><span>${icon('sprout')}${t('footer')}</span><button id="save-state" class="text-button" style="font-size:inherit;padding:0">${icon('check')}${escape(saveLabel())}</button></footer></main></div>`;
+    ${trialNotice()}<div id="view-content"></div><footer class="page-footer"><span>${icon('sprout')}${t('footer')}</span><button id="save-state" class="text-button" style="font-size:inherit;padding:0">${icon('check')}${escape(saveLabel())}</button></footer></main></div>`;
   renderView();
 }
 function renderView() {
@@ -183,7 +191,7 @@ function renderProgress() {
   const attempts = progress.sessions.reduce((n,s)=>n+s.attempts,0), correct = progress.sessions.reduce((n,s)=>n+s.correct,0);
   const mistakes = Object.entries(progress.mistakes).sort((a,b)=>b[1]-a[1]).map(([id,n])=>({c:byId(id),n})).filter(x=>x.c);
   $('#view-content').innerHTML = `<section class="view-heading"><div><h1>${t('progressTitle')}</h1><p>${t('progressSub')}</p></div><button class="quiet-button" data-action="export">${icon('export')}${t('export')}</button></section>
-    <div class="info-banner"><span>${t(user?'userNote':'guestNote',{name:escape(user?.username)})}</span>${!user?`<button class="text-button" data-action="account">${t('login')} ${icon('arrow')}</button>`:''}</div>
+    <div class="info-banner"><span>${t(user?'userNote':cloudService()?'guestNoteCloud':'guestNote',{name:escape(user?.username)})}</span>${!user?`<button class="text-button" data-action="account">${t('login')} ${icon('arrow')}</button>`:''}</div>
     <div class="stats-grid">${[['practiced',progress.mastered.length,'characters'],['completed',progress.sessions.length,'completed'],['accuracy',attempts?`${Math.round(correct/attempts*100)}%`:'—','session'],['favoriteCount',progress.favorites.length,'characters']].map(([key,n])=>`<div class="stat-box"><small>${t(key)}</small><b>${n}</b><span>${key==='practiced'?t('practiceOnly'):key==='accuracy'?t('completed'):t('characters')}</span></div>`).join('')}</div>
     <section class="record-panel"><h2>${t('practiced')}</h2>${progress.mastered.length?`<div class="character-chips">${progress.mastered.map(id=>`<button class="character-chip" data-detail="${id}">${byId(id).hanzi}<small>${byId(id).pinyin}</small></button>`).join('')}</div><p>${t('notMastery')}</p>`:`<p>${t('noPractice')}</p><button class="primary-button" data-view="match">${t('practiceNow')}${icon('arrow')}</button>`}</section>
     <section class="record-panel"><h2>${t('mistakes')}</h2>${mistakes.length?`<div class="character-chips">${mistakes.map(({c,n})=>`<button class="character-chip" data-detail="${c.id}">${c.hanzi}<small>× ${n}</small></button>`).join('')}</div><p>${t('mistakeNote')}</p><button class="quiet-button" data-action="review-mistakes">${icon('refresh')}${t('practiceMistakes')}</button>`:`<p>${t('noMistakes')}</p>`}</section>
@@ -237,10 +245,10 @@ function speak(id) {
 }
 function showAccount(mode = 'login') {
   if (user) {
-    return openModal('accountAbout', `<p class="detail-description">${escape(user.username)}</p><p class="modal-lead">${t('accountDescription')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('continue')}</button><button class="secondary-button" data-action="logout">${t('logout')}</button></div>`);
+    return openModal('accountAbout', `<p class="detail-description">${escape(user.username)}</p><p class="modal-lead">${t(cloudService()?'accountDescriptionCloud':'accountDescription')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('continue')}</button><button class="secondary-button" data-action="logout">${t('logout')}</button></div>`);
   }
-  if (!accountAvailable) return openModal('account',`<p class="modal-lead">${t('accountUnavailable')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('continue')}</button></div>`);
-  openModal(mode==='login'?'signIn':'signUp', `<p class="modal-lead">${t('authLead')}</p><div class="form-tabs"><button data-auth-mode="login" class="${mode==='login'?'active':''}">${t('signIn')}</button><button data-auth-mode="register" class="${mode==='register'?'active':''}">${t('signUp')}</button></div><form class="auth-form" id="auth-form" data-mode="${mode}"><label>${t('username')}<input name="username" autocomplete="username" required minlength="2" maxlength="32" placeholder="${t('userPlaceholder')}"></label><label>${t('password')}<input name="password" type="password" autocomplete="${mode==='login'?'current-password':'new-password'}" required minlength="8" maxlength="128" placeholder="${t('passwordPlaceholder')}"></label><label style="flex-direction:row;align-items:center;line-height:1.7"><input type="checkbox" name="merge" checked> ${t('merge')}</label><div class="form-error" role="alert" id="auth-error"></div><button class="primary-button" type="submit">${t(mode==='login'?'signIn':'signUp')}${icon('arrow')}</button></form>`);
+  if (!accountAvailable) return openModal('account',`<p class="modal-lead">${t(window.HANZI_STATIC_PREVIEW?'accountUnavailable':'accountOffline')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('continue')}</button></div>`);
+  openModal(mode==='login'?'signIn':'signUp', `<p class="modal-lead">${t(cloudService()?'authLeadCloud':'authLead')}</p><div class="form-tabs"><button data-auth-mode="login" class="${mode==='login'?'active':''}">${t('signIn')}</button><button data-auth-mode="register" class="${mode==='register'?'active':''}">${t('signUp')}</button></div><form class="auth-form" id="auth-form" data-mode="${mode}"><label>${t('username')}<input name="username" autocomplete="username" required minlength="2" maxlength="32" placeholder="${t('userPlaceholder')}"></label><label>${t('password')}<input name="password" type="password" autocomplete="${mode==='login'?'current-password':'new-password'}" required minlength="8" maxlength="128" placeholder="${t('passwordPlaceholder')}"></label><label style="flex-direction:row;align-items:center;line-height:1.7"><input type="checkbox" name="merge" checked> ${t('merge')}</label><div class="form-error" role="alert" id="auth-error"></div><button class="primary-button" type="submit">${t(mode==='login'?'signIn':'signUp')}${icon('arrow')}</button></form>`);
 }
 function mergeProgress(a,b) {
   return normalizeProgress({...a,mastered:[...a.mastered,...b.mastered],favorites:[...a.favorites,...b.favorites],
@@ -301,7 +309,7 @@ modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.ge
 async function init() {
   const response=await fetch(appUrl('data/characters.json')); if(!response.ok)throw new Error('Unable to load character library');
   characters=await response.json(); progress=readGuest(); language=progress.language;
-  try {if(!window.HANZI_STATIC_PREVIEW){const result=await api('me');accountAvailable=true;user=result.user;if(user){progress=normalizeProgress(await api('progress'),validIds());language=progress.language;}}}
+  try {if(!window.HANZI_STATIC_PREVIEW){const [result,health]=await Promise.all([api('me'),api('health')]);serviceInfo={...serviceInfo,...health};accountAvailable=true;user=result.user;if(user){progress=normalizeProgress(await api('progress'),validIds());language=progress.language;}}}
   catch {if(user){user=null;toast(t('accountOffline'));}accountAvailable=false;}
   startRound();shell(); if(!storageOK)toast(t('storageError'));
 }
