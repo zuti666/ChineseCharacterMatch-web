@@ -4,11 +4,15 @@
 
 Explore 50 learning targets with pictures, teaching forms, pinyin, and stories. Choose simplified or traditional characters in three-card rounds, or connect both scripts in four-card rounds. The prototype includes an atlas, favorites, local progress, and English, Spanish, and Chinese explanations.
 
+The web home is a growing game journey: thirteen main activities, a one-character tutorial, and three optional review camps. Completed activities light the path. My learning contains free practice, the full atlas, favorites, records, sources, and settings. Personal practice does not unlock the main path; completed activities are not a claim of mastery.
+
 ## Mobile website and app
 
 The responsive website supports touch navigation and adding to the home screen in supporting browsers. Wait for the offline-ready notice while online; then matching, the atlas, and guest records can work offline. Browser storage may be cleared by the user or device. System Mandarin voices depend on the device.
 
 Visit the [app support and download page](https://zuti666.github.io/ChineseCharacterMatch-web/?page=app&lang=en) for the approved Android debug APK, current version, minimum Android version, file size, and SHA-256. The APK download requires a connection and is excluded from the PWA cache. The native Android app uses separate local storage and still needs device validation.
+
+The current Android 0.5.0 trial keeps its existing matching interface. The new journey is released first on the website and PWA.
 
 This GitHub Pages site saves guest records in the current browser. The [cloud account website](https://chinesecharactermatch.onrender.com/?lang=en) provides the separately hosted account service and its trial notice.
 
@@ -20,4 +24,4 @@ Original PPT files, the private review batch, Python backend, user databases, ac
 
 The public files are generated from the private source project. Make changes in that source and sync them through the existing publishing workflow.
 
-静态构建来源版本：`1eaf54565211eef7a3ec98f20185dbe2ccc9dc5c`。
+静态构建来源版本：`14360b57b152e8a23178889dc0014eaeb7355e36`。

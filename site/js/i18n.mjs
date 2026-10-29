@@ -997,4 +997,6 @@ Object.assign(es, {
 Object.assign(zh, {"indicative": "位置与标记"});
 Object.assign(en, {"indicative": "Position and marks"});
 Object.assign(es, {"indicative": "Posición y marcas"});
+import {journeyDictionaries} from './journey-i18n.mjs';
+for (const [language,dictionary] of Object.entries({zh,en,es})) Object.assign(dictionary,journeyDictionaries[language]);
 export const dictionaries = {zh, en, es};

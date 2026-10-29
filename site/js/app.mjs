@@ -5,6 +5,9 @@ import {LANGUAGE_KEY, LANGUAGE_NAMES, isLanguage, resolveLanguage} from './langu
 import {mobileState, initMobile, requestInstall, installPlatform} from './mobile.mjs';
 import {fetchAndroidRelease, websiteLink, accountWebsiteLink} from './downloads.mjs';
 import {MATCH_PREFERENCES_KEY, normalizeMatchPreferences, characterForm, sameForms, deriveLessons} from './matching.mjs';
+import {createJourney,nodeAccess,recommendedNode,createAttempt,captureAttempt,restoreAttempt,createCompletionEvent} from './journey.mjs';
+import {JourneyStore} from './journey-store.mjs';
+import {journeyMarkup,personalMarkup,introductionMarkup} from './journey-ui.mjs';
 
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,7 +37,7 @@ const iconPaths = {
 const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || iconPaths.leaf}</svg>`;
 const app = $('#app');
 const modal = $('#modal');
-let characters = [], progress = emptyProgress(), user = null, language = 'en', view = 'match';
+let characters = [], progress = emptyProgress(), user = null, language = 'en', view = 'journey';
 let game, lesson = 'lesson1', featuredId = 'mountain', roundStarted = Date.now(), roundSaved = false;
 let filter = 'all', search = '', accountAvailable = false, storageOK = true, feedbackKey = 'ready', feedbackKind = '';
 let busyAnimation = false, roundVersion = 0, saveQueue = Promise.resolve(), syncError = false, pendingSaves = 0, toastTimer;
@@ -42,7 +45,9 @@ let serviceInfo = {storage:'sqlite', deploymentMode:'local', databaseExpiresAt:n
 let transientHistoryEntry = false;
 let androidRelease = null, releaseLoading = false, releaseFailed = false;
 let matchPreferences = normalizeMatchPreferences();
-const VIEWS = ['match','atlas','progress','sources','settings'];
+const PERSONAL_VIEWS = ['personal','match','atlas','progress','sources','settings'];
+const VIEWS = ['journey','game',...PERSONAL_VIEWS];
+let journey, journeyStore, journeyAttempt=null, journeyResult=null, roundContext='practice', showPast=false;
 const cloudService = () => serviceInfo.storage === 'postgres' || serviceInfo.deploymentMode === 'trial';
 let LESSONS = {}, lessonDefinitions = [];
 const t = (key, values = {}) => Object.entries(values).reduce((text, [k, v]) => text.replaceAll(`{${k}}`, v), dictionaries[language][key] || dictionaries.en[key] || key);
@@ -173,8 +178,18 @@ function trialNotice() {
 }
 function updateSaveState() {
   const node = $('#save-state'); if (node) {node.innerHTML = `${icon(syncError ? 'refresh' : 'check')} ${escape(saveLabel())}`; node.dataset.action = syncError ? 'retry' : '';}
+  const journeyNode=$('#journey-save-state');
+  if(journeyNode&&journeyStore){journeyNode.textContent=journeySaveLabel();journeyNode.dataset.action=journeyStore.account&&(!journeyStore.synced||journeyStore.pending.length)?'journey-sync':'';}
+  document.querySelectorAll('[data-journey-status]').forEach(node=>{node.textContent=journeySaveLabel();});
 }
+function journeySaveLabel(){return !journeyStore?.storageOK?t('storageError'):journeyStore.account?journeyStore.synced&&!journeyStore.pending.length?t('journeySynced'):t('journeyPending'):t('journeySavedDevice');}
+function journeyStorage(){
+  try{return window.localStorage;}catch{return {getItem(){throw new Error('Storage unavailable');},setItem(){throw new Error('Storage unavailable');}};}
+}
+function journeyContext(){return {t,icon,escape,glyph,byId,journey,journeyProgress:journeyStore.progress,progress,language,
+  activeAttempt:journeyStore.activeAttempt,showPast,description,meaning,appUrl,localized};}
 function startRound(ids) {
+  roundContext='practice';journeyResult=null;
   roundVersion++; busyAnimation = false;
   const primary = ids ? ids.map(byId).filter(Boolean) : lesson==='review' ? shuffle(eligible()) : (LESSONS[lesson]||LESSONS.lesson1).map(byId).filter(Boolean);
   const candidates=[...new Map([...primary,...shuffle(eligible())].filter(c=>c.practiceEligible!==false).map(c=>[c.id,c])).values()];
@@ -189,18 +204,23 @@ function startRound(ids) {
 }
 function shell() {
   updateLanguageMetadata();
-  const nav = [['match','grid'],['atlas','book'],['progress','chart'],['sources','source'],['settings','settings']];
+  document.body.classList.toggle('journey-playing',view==='game');
+  const nav = [['journey','sprout'],['personal','book']];
   app.innerHTML = `<div class="shell">
     <aside class="sidebar"><div class="brand"><span class="brand-stamp" lang="zh">字</span><div class="brand-name">${t('brandName')}<small>${t('brandTagline')}</small></div></div>
-    <div class="nav-label">${t('learning')}</div><nav class="nav" aria-label="${t('learning')}">${nav.map(([name,i])=>`<button data-view="${name}" class="${view===name?'active':''}" ${view===name?'aria-current="page"':''}>${icon(i)}<span>${t(name)}</span></button>`).join('')}</nav>
+    <div class="nav-label">${t('learning')}</div><nav class="nav" aria-label="${t('learning')}">${nav.map(([name,i])=>{const active=name==='journey'?['journey','game'].includes(view):PERSONAL_VIEWS.includes(view);return `<button data-view="${name}" class="${active?'active':''}" ${active?'aria-current="page"':''}>${icon(i)}<span>${t(name)}</span></button>`;}).join('')}</nav>
     <div class="sidebar-note">${icon('sprout')}<p>${t('sidebarTagline')}</p><small>${t('growthNote')}</small></div>
     <div class="user-box"><div class="avatar">${user?escape(user.username.slice(0,1)):icon('user')}</div><div class="user-text"><b>${escape(user?.username || t('guest'))}</b><small>${user?t(cloudService()?'serverSaveCloud':'serverSave'):t(nativeApp()?'mobileStorage':'localSave')}</small></div><button data-action="account" aria-label="${t('account')}">${icon('user')}</button></div></aside>
     <main class="main"><header class="topbar"><div class="mobile-brand"><span class="brand-stamp" lang="zh">字</span><span class="mobile-name">${t('brandName')}</span></div><div class="breadcrumb">${icon('leaf')}<span>${t('explore')}</span><span>/</span><span>${t(view)}</span></div><div class="top-tools"><span class="version">${t('prototypeVersion')}</span><div class="language-control"><button class="language-label" data-action="language-settings" aria-label="${t('languageSettings')}">${icon('globe')} <span>${t('language')}</span></button><select class="language" id="language" aria-label="${t('chooseLanguage')}">${Object.entries(LANGUAGE_NAMES).map(([code,name])=>`<option value="${code}" ${language===code?'selected':''}>${name}</option>`).join('')}</select></div>${nativeApp()?'':`<button class="round-icon app-install-button" data-action="app-install" aria-label="${t(mobileState.installed?'pwaAppInfo':'pwaInstall')}">${icon('phone')}</button>`}<button class="round-icon" data-action="account" aria-label="${user?t('account'):t('login')}">${icon('user')}</button></div></header>
-    <div id="network-notice">${networkMarkup()}</div><div id="view-content"></div>${trialNotice()}<footer class="page-footer"><span>${icon('sprout')}${t('footer')}</span><button id="save-state" class="text-button" style="font-size:inherit;padding:0">${icon('check')}${escape(saveLabel())}</button></footer></main></div>`;
+    <div id="network-notice">${networkMarkup()}</div>${PERSONAL_VIEWS.includes(view)?`<nav class="learning-tabs" aria-label="${t('personal')}">${PERSONAL_VIEWS.map(name=>`<button data-view="${name}" ${view===name?'aria-current="page"':''} class="${view===name?'active':''}">${t(name==='personal'?'personalOverview':name==='match'?'personalPractice':name)}</button>`).join('')}</nav>`:''}<div id="view-content"></div>${trialNotice()}<footer class="page-footer"><span>${icon('sprout')}${t('footer')}</span><div><button id="journey-save-state" class="text-button" data-action="journey-sync">${escape(journeySaveLabel())}</button><button id="save-state" class="text-button" style="font-size:inherit;padding:0">${icon('check')}${escape(saveLabel())}</button></div></footer></main></div>`;
   renderView();
+  updateSaveState();
 }
 function renderView() {
-  if (view === 'match') renderMatch();
+  if (view === 'journey') $('#view-content').innerHTML=journeyMarkup(journeyContext());
+  else if(view==='personal') $('#view-content').innerHTML=personalMarkup(journeyContext());
+  else if(view==='game') renderJourneyGame();
+  else if (view === 'match') renderMatch();
   else if (view === 'atlas') renderAtlas();
   else if (view === 'progress') renderProgress();
   else if (view === 'settings') renderSettings();
@@ -218,18 +238,21 @@ function storyMarkup() {
   const c = byId(featuredId);
   return `<div class="panel-eyebrow">${t('story')} · ${t('closerLook')}</div><div class="story-title"><div class="story-hanzi" lang="zh">${escape(glyph(c))}</div><button class="round-icon" data-speak="${c.id}" aria-label="${t('speak')} · ${escape(glyph(c))}">${icon('sound')}</button></div><div class="story-pinyin">${c.pinyin}</div><div class="story-meaning">${escape(meaning(c))}</div><div class="divider"></div><p>${escape(description(c))}</p><div class="source-small">${escape(sourceLine(c))} · ${t('reviewRequired')}</div><button class="text-button" data-detail="${c.id}">${t('detail')} ${icon('arrow')}</button>`;
 }
+function cardsMarkup() {
+  return game.cards.map(card=>{
+    const c=byId(card.id),written=['modern','simplified','traditional'].includes(card.type);
+    const script=card.type==='modern'?matchPreferences.script:card.type;
+    const accessible=written?glyph(c,script):card.type==='picture'?meaning(c):localized(c,'hint');
+    return `<button class="card ${card.type} ${written?'written-card':''}" data-card="${card.key}" aria-label="${t(card.type==='modern'?matchPreferences.script:card.type)} · ${escape(accessible)}">${written?`<span class="hanzi" lang="${formLang(script)}">${escape(glyph(c,script))}</span><span class="card-seal">${t(script)}</span>`:`<img src="${escape(appUrl(c[card.type]))}" alt="" draggable="false">`}</button>`;
+  }).join('');
+}
 function renderMatch() {
   $('#view-content').innerHTML = `<section class="hero"><div><div class="eyebrow">${t('eyebrow')}</div><h1>${t('hero1')}<br><em>${t('hero2')}</em></h1><p>${t('subtitle')}</p></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><img src="${escape(appUrl('/assets/ppt/mountain-picture.png'))}" alt=""><div class="hero-character">山</div><span class="tiny-seal">${t('characterLabel')}</span></div></section>
     <div class="workspace"><div><div class="lesson-tabs" aria-label="${t('learning')}">${[...Object.keys(LESSONS),'review'].map((name,i)=>`<button class="lesson-tab ${lesson===name?'active':''}" data-lesson="${name}" aria-pressed="${lesson===name}">${escape(lessonTitle(name))}<span>${name==='review'?'↻':String(i+1).padStart(2,'0')}</span></button>`).join('')}</div>
     ${matchSettingsMarkup()}<section class="play-area ${isQuad()?'quad-play':''}" aria-label="${t('match')}"><div class="play-heading"><div><h2><span class="desktop-game-title">${t(isQuad()?'quadTitle':'gameTitle')}</span><span class="mobile-game-title">${t(isQuad()?'quadShort':'mobileMatchTitle')}</span></h2><p class="desktop-game-sub">${t(isQuad()?'quadSub':'gameSub')}</p><p class="mobile-game-sub">${t(isQuad()?'quadSub':'mobileMatchSub')}</p></div><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div>
     <div class="round-meta"><strong id="round-count"></strong><div class="progress-track"><div id="round-fill" class="progress-fill"></div></div><span id="selection-count"></span></div>
     <div class="column-heads">${game.types.map((key,i)=>`<div><span>${i+1}</span>${t(key==='modern'?matchPreferences.script:key)}</div>`).join('')}</div>
-    <div class="board" id="board">${game.cards.map(card=>{
-      const c=byId(card.id), written=['modern','simplified','traditional'].includes(card.type);
-      const script=card.type==='modern'?matchPreferences.script:card.type;
-      const accessible=written?glyph(c,script):card.type==='picture'?meaning(c):localized(c,'hint');
-      return `<button class="card ${card.type} ${written?'written-card':''}" data-card="${card.key}" aria-label="${t(card.type==='modern'?matchPreferences.script:card.type)} · ${escape(accessible)}">${written?`<span class="hanzi" lang="${formLang(script)}">${escape(glyph(c,script))}</span><span class="card-seal">${t(script)}</span>`:`<img src="${escape(appUrl(c[card.type]))}" alt="" draggable="false">`}</button>`;
-    }).join('')}</div>
+    <div class="board" id="board">${cardsMarkup()}</div>
     <div class="board-footer"><div id="feedback" class="feedback" role="status" aria-live="polite"></div><button class="text-button" data-action="hint">${icon('bulb')}${t('hint')}</button></div></section><p class="board-caption">${t('caption')}${isQuad()?`<br>${t('sameFormsNote')}`:''}</p><button class="text-button" data-action="new-round" style="margin-top:5px">${icon('refresh')}${t('newRound')}</button></div>
     <aside class="right-column"><section class="story-panel" id="story-panel">${storyMarkup()}</section><section class="goal-panel" id="goal-panel">${goalMarkup()}</section><div class="tip-card">${icon('leaf')}<span>${t('tip')}</span></div><section class="feature-teaser"><small>${t('featureLabel')}</small><h3>${t('featureTitle')}</h3><p>${t('featureLead')}</p><button class="text-button" data-view="settings">${t('promoCta')}${icon('arrow')}</button></section></aside></div>`;
   updateBoard();
@@ -237,7 +260,7 @@ function renderMatch() {
   if(active&&tabs)tabs.scrollLeft=Math.max(0,active.offsetLeft-tabs.offsetLeft-tabs.clientWidth/2+active.clientWidth/2);
 }
 function updateBoard(kind = '') {
-  if (view !== 'match' || !$('#board')) return;
+  if (!['match','game'].includes(view) || !$('#board')) return;
   document.querySelectorAll('[data-card]').forEach(button => {
     const key = button.dataset.card, card = game.cards.find(c => c.key === key), selected = game.selected.includes(key), matched = game.matched.includes(card.id);
     button.classList.toggle('selected', selected); button.classList.toggle('matched', matched && !selected);
@@ -250,9 +273,10 @@ function updateBoard(kind = '') {
   $('#feedback').textContent = t(feedbackKey); $('#feedback').className = `feedback ${feedbackKind}`;
 }
 function handleCard(key) {
-  if (busyAnimation) return;
+  if (busyAnimation || !['match','game'].includes(view) || roundSaved) return;
   const result = selectCard(game,key); game = result.round;
   if (result.kind === 'ignored') return;
+  saveJourneyAttempt();
   feedbackKey = ['correct','incorrect'].includes(result.kind) ? result.kind : game.selected.length ? 'selected' : 'ready';
   feedbackKind = result.kind === 'correct' ? 'good' : result.kind === 'incorrect' ? 'bad' : '';
   updateBoard(result.kind);
@@ -266,17 +290,97 @@ function handleCard(key) {
   const version = roundVersion;
   setTimeout(() => {
     if (version !== roundVersion) return;
-    game = settleSelection(game); busyAnimation = false; updateBoard();
+    game = settleSelection(game); busyAnimation = false; saveJourneyAttempt();updateBoard();
     if (game.matched.length === game.ids.length) finishRound();
   }, 650);
 }
 function finishRound() {
   if (roundSaved) return; roundSaved = true;
-  const seconds = Math.max(1,Math.round((Date.now()-roundStarted)/1000));
-  progress.sessions.push({id:uid(),completedAt:new Date().toISOString(),correct:game.correct,attempts:game.attempts,seconds,characterIds:[...game.ids],matchMode:isQuad()?'quad':'triple',script:matchPreferences.script});
+  const seconds = Math.min(86400,Math.max(1,Math.round((Date.now()-roundStarted)/1000)));
+  const completedAt=new Date().toISOString();
+  const attempt=roundContext==='journey'?journeyAttempt:null;
+  if(attempt){
+    const event=createCompletionEvent(attempt,game,journey,{eventId:'complete-'+attempt.attemptId,completedAt});
+    if(!event){roundSaved=false;return;}
+    const replay=!!journeyStore.progress.completedNodes[attempt.nodeId];
+    journeyStore.complete(event);journeyResult={nodeId:attempt.nodeId,event,replay};journeyAttempt=null;
+    journeyStore.sync();
+  }
+  const sessionId=attempt?.attemptId||uid();
+  if(!progress.sessions.some(s=>s.id===sessionId))progress.sessions.push({id:sessionId,completedAt,correct:game.correct,attempts:game.attempts,seconds,characterIds:[...game.ids],matchMode:isQuad()?'quad':'triple',script:matchPreferences.script});
   progress.sessions = progress.sessions.slice(-200); saveProgress();
   if ($('#goal-panel')) $('#goal-panel').innerHTML = goalMarkup();
+  if(attempt){renderJourneyGame();return;}
   openModal('resultTitle', `<div class="result-summary"><div class="success-art">${icon('sprout')}</div><h3>${t('resultTitle')}</h3><p>${t('resultSub',{n:game.ids.length})}</p></div><div class="result-stats"><div><b>${game.ids.length}</b><small>${t('characters')}</small></div><div><b>${Math.round(game.correct/game.attempts*100)}%</b><small>${t('accuracy')}</small></div><div><b>${game.hints}</b><small>${t('roundHints')}</small></div></div><p class="modal-lead">${t('resultNote')}</p><div class="modal-actions"><button class="primary-button" data-action="again">${t('again')}${icon('arrow')}</button><button class="secondary-button" data-view="progress">${t('seeProgress')}</button></div>`);
+}
+function saveJourneyAttempt(options={}) {
+  if(view!=='game'||roundContext!=='journey'||!journeyAttempt||roundSaved)return;
+  journeyAttempt=captureAttempt(journeyAttempt,game,journey,options);
+  journeyStore.setAttempt(journeyAttempt);
+}
+function activateJourneyAttempt(restored) {
+  roundVersion++;busyAnimation=false;roundSaved=false;journeyResult=null;roundContext='journey';
+  journeyAttempt=restored.attempt;game=restored.round;
+  matchPreferences={mode:journeyAttempt.mode,script:journeyAttempt.script};
+  roundStarted=Date.parse(journeyAttempt.startedAt);feedbackKey='ready';feedbackKind='';featuredId=game.ids[0];
+}
+function beginJourney(nodeId,{restart=false}={}) {
+  const node=journey.nodeById[nodeId];
+  const saved=journeyStore.activeAttempt?.nodeId===nodeId?restoreAttempt(journeyStore.activeAttempt,journey):null;
+  if(!node||!saved&&!nodeAccess(nodeId,journeyStore.progress,journey).canStart)return showJourneyNode(nodeId);
+  if(!navigator.onLine&&!mobileState.ready){
+    openModal('pwaTitle',`<p class="modal-lead">${t('journeyAssetsUnavailable')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('close')}</button></div>`);return;
+  }
+  if(view==='game')saveJourneyAttempt();
+  const restored=!restart?saved:null;
+  roundVersion++;busyAnimation=false;roundSaved=false;journeyResult=null;roundContext='journey';
+  if(restored){journeyAttempt=restored.attempt;game=restored.round;}
+  else {
+    const mode=node.kind==='tutorial'?'triple':matchPreferences.mode;
+    game=createRound(node.targetIds.map(byId),Math.random,mode==='quad'?{types:QUAD_TYPES}:{});
+    journeyAttempt=createAttempt(nodeId,game,journey,{attemptId:uid(),mode,script:matchPreferences.script,
+      stage:journeyStore.progress.completedNodes[nodeId]?'game':'intro'});
+  }
+  matchPreferences={mode:journeyAttempt.mode,script:journeyAttempt.script};
+  roundStarted=Date.parse(journeyAttempt.startedAt);feedbackKey='ready';feedbackKind='';featuredId=node.targetIds[0];
+  journeyStore.setAttempt(journeyAttempt);navigate('game');
+  if(game.matched.length===game.ids.length)finishRound();
+}
+function showJourneyNode(nodeId) {
+  const node=journey.nodeById[nodeId];if(!node)return;
+  const access=nodeAccess(nodeId,journeyStore.progress,journey);
+  if(journeyStore.activeAttempt?.nodeId===nodeId&&restoreAttempt(journeyStore.activeAttempt,journey))access.canStart=true;
+  openModal('journey',`<h3>${escape(localized(node,'title'))}</h3><p class="modal-lead">${t(access.canStart?'journeyTargets':'journeyPreviewText',{n:node.targetIds.length})}</p>
+    <div class="character-chips">${node.targetIds.map(id=>`<button class="character-chip" data-detail="${id}">${escape(glyph(byId(id)))}<small>${escape(byId(id).pinyin)}</small></button>`).join('')}</div>
+    ${access.canStart&&node.kind!=='tutorial'?`<label class="journey-mode-label" for="journey-mode">${t('matchMode')}<select id="journey-mode"><option value="triple" ${isQuad()?'':'selected'}>${t('modeTriple')}</option><option value="quad" ${isQuad()?'selected':''}>${t('modeQuad')}</option></select></label><p class="modal-lead">${t('journeyBridgeText')}</p>`:''}
+    <p class="source-small">${t('journeyNote')}</p><div class="modal-actions">${access.canStart?`<button class="primary-button" data-journey-start="${nodeId}">${t(access.completed?'journeyReplay':'journeyPlay')}${icon('arrow')}</button>`:`<button class="primary-button" data-view="personal">${t('personal')}${icon('arrow')}</button>`}<button class="secondary-button" data-action="close">${t('close')}</button></div>`);
+}
+function renderJourneyGame() {
+  const node=journey.nodeById[journeyAttempt?.nodeId||journeyResult?.nodeId];
+  if(!node){navigate('journey');return;}
+  const top=`<header class="journey-round-header"><button class="round-icon" data-action="journey-pause" aria-label="${t('journeyBack')}">${icon('arrow')}</button><span>${escape(localized(node,'title'))}</span><small>${t('journey')}</small></header>`;
+  if(journeyResult){
+    const result=journeyResult,next=recommendedNode(journeyStore.progress,journey);
+    $('#view-content').innerHTML=top+`<section class="journey-settlement"><div class="success-art">${icon('sprout')}</div><h1>${t(result.replay?'journeyReplayed':'journeyResult')}</h1><p>${t('journeyResultText',{n:result.event.targetIds.length})}</p><div class="character-chips">${result.event.targetIds.map(id=>`<button class="character-chip" data-detail="${id}">${escape(glyph(byId(id)))}<small>${escape(byId(id).pinyin)}</small></button>`).join('')}</div><p>${t(result.event.hints?'journeyHelped':'journeyResultNote')}</p><p class="source-small">${t('journeyNote')}</p><div class="encounter-actions">${next?`<button class="primary-button" data-journey-start="${next.id}">${t('journeyNextAction')}${icon('arrow')}</button>`:''}<button class="secondary-button" data-view="journey">${t('journeyBack')}</button><button class="secondary-button" data-action="journey-explore">${t('journeyExplore')}</button></div><p class="source-small" data-journey-status>${journeySaveLabel()}</p></section>`;
+    return;
+  }
+  if(journeyAttempt.stage==='intro'){$('#view-content').innerHTML=top+introductionMarkup(journeyContext(),journeyAttempt);return;}
+  $('#view-content').innerHTML=top+`<section class="journey-game-heading"><h1>${t(isQuad()?'quadShort':'gameTitle')}</h1><p>${t('journeyReadyHint')}</p></section><section class="play-area ${isQuad()?'quad-play':''}"><div class="play-heading"><p>${t('journeyTargets',{n:game.ids.length})}</p><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div><div class="round-meta"><strong id="round-count"></strong><div class="progress-track"><div id="round-fill" class="progress-fill"></div></div><span id="selection-count"></span></div><div class="column-heads">${game.types.map((key,i)=>`<div><span>${i+1}</span>${t(key==='modern'?matchPreferences.script:key)}</div>`).join('')}</div><div class="board" id="board">${cardsMarkup()}</div><div class="board-footer"><div id="feedback" class="feedback" role="status" aria-live="polite"></div><button class="text-button" data-action="hint">${icon('bulb')}${t('hint')}</button></div></section><p class="board-caption">${t('caption')}${isQuad()?`<br>${t('sameFormsNote')}`:''}</p><button class="text-button" data-detail="${featuredId}">${t('detail')}${icon('arrow')}</button>`;
+  updateBoard();
+}
+function nextEncounter() {
+  if(!journeyAttempt||journeyAttempt.stage!=='intro')return;
+  const node=journey.nodeById[journeyAttempt.nodeId],index=journeyAttempt.introductionIndex+1;
+  saveJourneyAttempt({introductionIndex:index,stage:index>=node.targetIds.length?'game':'intro'});
+  renderJourneyGame();window.scrollTo({top:0,behavior:'instant'});
+}
+function pauseJourney() {
+  if(journeyResult)return navigate('journey');
+  saveJourneyAttempt();
+  openModal('journeyPause',`<p class="modal-lead">${t(journeyStore.storageOK?'journeyPauseText':'storageError')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('journeyStay')}</button><button class="secondary-button" data-view="journey">${t('journeyBack')}</button><button class="secondary-button" data-action="journey-restart">${t('journeyRestart')}</button></div>`);
+}
+function showPlacement() {
+  openModal('personalChooseStart',`<p class="modal-lead">${t('personalStartNote')}</p><label class="journey-mode-label" for="journey-placement">${t('courseChoose')}<select id="journey-placement">${journey.nodes.filter(n=>n.kind==='main').map(n=>`<option value="${n.id}" ${journeyStore.progress.placementNodeId===n.id?'selected':''}>${escape(localized(n,'title'))}</option>`).join('')}</select></label><div class="modal-actions"><button class="primary-button" data-action="journey-place">${t('personalStartHere')}${icon('arrow')}</button><button class="secondary-button" data-action="close">${t('close')}</button></div>`);
 }
 function renderAtlas() {
   $('#view-content').innerHTML = `<section class="view-heading"><div><h1>${t('atlasTitle')}</h1><p>${t('atlasSub')}</p></div><label class="search">${icon('search')}<input id="search" type="search" value="${escape(search)}" placeholder="${t('search')}" aria-label="${t('search')}"></label></section><div class="filter-row">${['all','nature','body','life','meaning','favorites'].map(name=>`<button data-filter="${name}" class="${filter===name?'active':''}" aria-pressed="${filter===name}">${t(name)}${name==='all'?` · ${characters.length}`:''}</button>`).join('')}</div><div class="atlas-grid" id="atlas-grid"></div>`;
@@ -402,6 +506,7 @@ function showHint() {
 }
 function reveal(id) {
   closeModal(); game.hints++;
+  saveJourneyAttempt();
   feedbackKey='answerShown'; feedbackKind=''; updateBoard();
   game.cards.filter(c=>c.id===id).forEach(card => {
     const button = document.querySelector(`[data-card="${card.key}"]`); if (button) {button.classList.remove('hinted'); void button.offsetWidth; button.classList.add('hinted');}
@@ -415,6 +520,7 @@ function toggleFavorite(id) {
     if (button.closest('dialog')) button.innerHTML=`${icon('star')}${t(had?'favorite':'unfavorite')}`;
   });
   if (view==='atlas' && filter==='favorites') renderAtlasCards();
+  if (view==='personal') renderView();
 }
 function speak(id) {
   if (nativeApp()) {
@@ -451,19 +557,26 @@ async function submitAuth(form) {
     try {loaded = normalizeProgress(await api('progress'),validIds());}
     catch (error) {await api('logout',{method:'POST',body:'{}'}).catch(()=>{}); throw error;}
     if (form.elements.merge.checked) loaded=mergeProgress(loaded,guest);
-    user=result.user; progress=loaded; syncError=false; await saveProgress(); closeModal(); startRound(); shell(); toast(t('loggedIn'));
+    saveJourneyAttempt();
+    user=result.user; progress=loaded; syncError=false;
+    journeyStore.switchScope(`user:${user.id}`);await journeyStore.sync();
+    if(form.elements.merge.checked){journeyStore.mergeGuest();await journeyStore.sync();}
+    journeyAttempt=null;journeyResult=null;
+    await saveProgress();closeModal();startRound();if(view==='game')view='journey';shell();toast(t('loggedIn'));
   } catch (error) {if ($('#auth-error')) $('#auth-error').textContent=error.message;}
   finally {if (submit.isConnected) {submit.disabled=false; submit.textContent=t(form.dataset.mode==='login'?'signIn':'signUp');}}
 }
 async function logout() {
+  saveJourneyAttempt();
   await saveQueue;
   if (syncError) {toast(t('saveError')); return;}
-  try {await api('logout',{method:'POST',body:'{}'}); user=null; progress=readGuest(); syncError=false; closeModal(); startRound(); shell(); toast(t('loggedOut'));}
+  try {await api('logout',{method:'POST',body:'{}'}); user=null; progress=readGuest(); syncError=false;journeyStore.switchScope('guest');journeyAttempt=null;journeyResult=null;closeModal();startRound();if(view==='game')view='journey';shell();toast(t('loggedOut'));}
   catch(error) {toast(error.message);}
 }
 function exportProgress() {
   progress.language = language;
-  const text = JSON.stringify({app:'Ziyu',version:1,exportedAt:new Date().toISOString(),progress},null,2);
+  saveJourneyAttempt();
+  const text = JSON.stringify({app:'Ziyu',version:2,exportedAt:new Date().toISOString(),progress,journey:journeyStore.export()},null,2);
   const filename = `ziyu-progress-${new Date().toISOString().slice(0,10)}.json`;
   if (nativeApp()) {
     try {
@@ -492,12 +605,18 @@ window.HanziAndroidBack = () => {
 };
 function navigate(name) {
   if (!VIEWS.includes(name)) return;
+  if(name==='game'&&!journeyAttempt&&!journeyResult)name='journey';
+  if(view==='game'&&name!=='game'){saveJourneyAttempt();roundVersion++;busyAnimation=false;}
+  if(name==='match'&&roundContext==='journey')startRound();
   if (!nativeApp()) {
     const url=new URL(location.href);
+    url.searchParams.delete('tab');url.searchParams.delete('node');
     if (name==='settings') url.searchParams.set('page','app');
-    else if (url.searchParams.get('page')==='app') url.searchParams.delete('page');
+    else if(name==='journey')url.searchParams.set('page','journey');
+    else if(name==='game'){url.searchParams.set('page','play');url.searchParams.set('node',journeyAttempt?.nodeId||journeyResult.nodeId);}
+    else {url.searchParams.set('page','learning');if(name!=='personal')url.searchParams.set('tab',name);}
     const state = {...history.state,ziyuView:name,ziyuDialog:false,ziyuTransient:false};
-    if (history.state?.ziyuDialog) history.replaceState(state,'',url);
+    if (history.state?.ziyuDialog||name==='game'&&view==='game') history.replaceState(state,'',url);
     else if (view !== name) history.pushState(state,'',url);
   }
   transientHistoryEntry = !nativeApp() && !!history.state?.ziyuTransient;
@@ -510,6 +629,7 @@ window.addEventListener('popstate',event=>{
   const skipClosedEntry = state.ziyuTransient || (transientHistoryEntry && state.ziyuView === view);
   transientHistoryEntry = !!state.ziyuTransient;
   if (skipClosedEntry) {history.back(); return;}
+  if(view==='game'&&state.ziyuView!=='game'){saveJourneyAttempt();roundVersion++;busyAnimation=false;}
   // A manual language choice also applies when returning to an older URL.
   const url=new URL(location.href);
   if (url.searchParams.has('lang') && url.searchParams.get('lang')!==language) {
@@ -520,16 +640,29 @@ window.addEventListener('popstate',event=>{
   if (modal.open) modal.close();
   // Forward navigation restores the view; dismissed dialog contents are ephemeral.
   if (state.ziyuDialog) history.replaceState({...state,ziyuDialog:false,ziyuTransient:false},'',location.href);
-  if (view !== state.ziyuView) {view=state.ziyuView;shell();window.scrollTo({top:0,behavior:'instant'});}
+  let nextView=state.ziyuView;
+  if(nextView==='game'){
+    const saved=restoreAttempt(journeyStore.activeAttempt,journey),nodeId=url.searchParams.get('node');
+    if(saved&&saved.attempt.nodeId===nodeId){activateJourneyAttempt(saved);}
+    else if(journeyResult?.nodeId!==nodeId){nextView='journey';url.searchParams.set('page','journey');url.searchParams.delete('node');history.replaceState({...history.state,ziyuView:nextView},'',url);}
+  }
+  if(nextView==='match'&&roundContext==='journey')startRound();
+  if(view!==nextView||nextView==='game'){
+    view=nextView;shell();window.scrollTo({top:0,behavior:'instant'});
+    if(view==='game'&&!journeyResult&&game.matched.length===game.ids.length)finishRound();
+  }
 });
 modal.addEventListener('close',()=>{if (!modal.open) retireModalRoute();});
 window.addEventListener('offline',refreshMobileStatus);
-window.addEventListener('online',()=>{refreshMobileStatus();if(view==='settings'&&!androidRelease)checkDownload(); if(!nativeApp()&&!window.HANZI_STATIC_PREVIEW&&!accountAvailable) api('health').then(health=>{serviceInfo={...serviceInfo,...health};accountAvailable=true;}).catch(()=>{});});
+window.addEventListener('online',()=>{refreshMobileStatus();journeyStore?.sync();if(user&&syncError)saveProgress();if(view==='settings'&&!androidRelease)checkDownload(); if(!nativeApp()&&!window.HANZI_STATIC_PREVIEW&&!accountAvailable) api('health').then(health=>{serviceInfo={...serviceInfo,...health};accountAvailable=true;}).catch(()=>{});});
 
 document.addEventListener('click', event => {
   const button=event.target.closest('button'); if(!button || button.disabled) return;
   const d=button.dataset;
   if(d.setLanguage) return setLanguage(d.setLanguage);
+  if(d.journeyStart)return beginJourney(d.journeyStart);
+  if(d.journeyNode)return showJourneyNode(d.journeyNode);
+  if(Object.hasOwn(d,'bridge')){lesson='lesson4';matchPreferences.mode='quad';try{localStorage.setItem(MATCH_PREFERENCES_KEY,JSON.stringify(matchPreferences));}catch{}startRound();navigate('match');return;}
   if(d.card) return handleCard(d.card);
   if(d.view) return navigate(d.view);
   if(d.detail) return showDetail(d.detail);
@@ -540,6 +673,13 @@ document.addEventListener('click', event => {
   if(d.lesson) {lesson=d.lesson; const url=new URL(location.href);if(url.searchParams.has('lesson')){url.searchParams.set('lesson',lesson);history.replaceState(history.state,'',url);}startRound();renderMatch();return;}
   if(d.filter) {filter=d.filter; renderAtlas(); return;}
   const actions={'app-install':showInstallInfo,'install-now':installNow,'language-settings':showLanguageSettings,guide:showGuide,hint:showHint,account:()=>showAccount(),close:()=>closeModal(),retry:saveProgress,export:exportProgress,logout,
+    'journey-intro-next':nextEncounter,'journey-pause':pauseJourney,'journey-placement':showPlacement,
+    'journey-sync':()=>journeyStore.sync(),'journey-past':()=>{showPast=!showPast;renderView();},
+    'journey-locate':()=>$('.journey-node.current')?.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}),
+    'journey-restart':()=>{const id=journeyAttempt?.nodeId;if(id)beginJourney(id,{restart:true});},
+    'journey-place':()=>{const id=$('#journey-placement')?.value;if(id){journeyStore.place(id);journeyStore.setAttempt(null);journeyAttempt=null;journeyResult=null;journeyStore.sync();navigate('journey');}},
+    'journey-explore':()=>{filter='all';search='';navigate('atlas');},
+    'personal-favorites':()=>{filter='favorites';search='';navigate('atlas');},
     'check-download':checkDownload,'share-website':shareWebsite,'copy-website':copyWebsite,
     'new-round':()=>{startRound();renderMatch();},again:()=>{closeModal();startRound();view='match';shell();},
     'review-mistakes':()=>{const ids=Object.entries(progress.mistakes).sort((a,b)=>b[1]-a[1]).map(([id])=>id).filter(id=>byId(id)?.practiceEligible!==false);lesson='review';startRound(ids);navigate('match');}};
@@ -547,6 +687,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('input',event=>{if(event.target.id==='search'){search=event.target.value;renderAtlasCards();}});
 document.addEventListener('change',event=>{
+  if(event.target.id==='journey-mode'){matchPreferences.mode=event.target.value;try{localStorage.setItem(MATCH_PREFERENCES_KEY,JSON.stringify(matchPreferences));}catch{storageOK=false;}return;}
   if(event.target.id==='match-mode')setMatchPreference('mode',event.target.value);
   if(event.target.id==='match-script')setMatchPreference('script',event.target.value);
   if(event.target.id==='language') setLanguage(event.target.value);
@@ -560,6 +701,10 @@ async function init() {
   characters=await response.json();
   lessonDefinitions=deriveLessons(characters);
   LESSONS=Object.fromEntries(lessonDefinitions.map(l=>[l.id,l.characterIds]));
+  journey=createJourney(characters);
+  journeyStore=new JourneyStore(journey,{storage:journeyStorage(),api,onChange:()=>{
+    updateSaveState();if(['journey','personal'].includes(view)&&$('#view-content'))renderView();
+  }});
   try {matchPreferences=normalizeMatchPreferences(JSON.parse(localStorage.getItem(MATCH_PREFERENCES_KEY)));}catch{}
   const linkedPreferences=new URLSearchParams(location.search);
   if(['triple','quad'].includes(linkedPreferences.get('mode')))matchPreferences.mode=linkedPreferences.get('mode');
@@ -572,12 +717,20 @@ async function init() {
   } catch {}
   try {if(!window.HANZI_STATIC_PREVIEW && navigator.onLine){const [result,health]=await Promise.all([api('me'),api('health')]);serviceInfo={...serviceInfo,...health};accountAvailable=true;user=result.user;if(user){progress=normalizeProgress(await api('progress'),validIds());language=initialLanguage(progress.language);}}}
   catch {if(user){user=null;toast(t('accountOffline'));}accountAvailable=false;}
+  if(user){journeyStore.switchScope(`user:${user.id}`);await journeyStore.sync();}
   progress.language = language;
+  const page=linkedPreferences.get('page');
+  if(page==='app')view='settings';
+  else if(page==='learning')view=PERSONAL_VIEWS.includes(linkedPreferences.get('tab'))?linkedPreferences.get('tab'):'personal';
+  else if(!page&&linkedPreferences.has('lesson'))view='match';
+  else view=nativeApp()?'match':'journey';
+  startRound();
+  const resumed=page==='play'?restoreAttempt(journeyStore.activeAttempt,journey):null;
+  if(resumed&&resumed.attempt.nodeId===linkedPreferences.get('node')){activateJourneyAttempt(resumed);view='game';}
   if (!nativeApp()) {
-    if(new URLSearchParams(location.search).get('page')==='app')view='settings';
     history.replaceState({...history.state,ziyuView:view,ziyuDialog:false,ziyuTransient:false},'',location.href);
   }
-  startRound();shell(); if(!storageOK)toast(t('storageError'));
+  shell();if(view==='game'&&game.matched.length===game.ids.length)finishRound();if(!storageOK)toast(t('storageError'));
   initMobile(refreshMobileStatus);
 }
 language = initialLanguage();
