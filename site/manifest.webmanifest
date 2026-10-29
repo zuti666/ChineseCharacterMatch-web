@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "Ziyu · Chinese character match",
+  "short_name": "Ziyu",
+  "description": "Learn Chinese characters with pictures and matching. English, Spanish and Chinese explanations.",
+  "lang": "en",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f7f0",
+  "theme_color": "#244f43",
+  "prefer_related_applications": false,
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ],
+  "categories": ["education", "games"]
+}

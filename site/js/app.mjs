@@ -2,10 +2,14 @@ import {createRound, selectCard, settleSelection, hintFor, shuffle, emptyProgres
 import {dictionaries} from './i18n.mjs';
 import {appUrl} from './paths.mjs';
 import {LANGUAGE_KEY, LANGUAGE_NAMES, isLanguage, resolveLanguage} from './language.mjs';
+import {mobileState, initMobile, requestInstall, installPlatform} from './mobile.mjs';
+import {fetchAndroidRelease, websiteLink, accountWebsiteLink} from './downloads.mjs';
 
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const iconPaths = {
+  settings:'<path d="m9 3-1 3-3 1v4l-2 1 2 1v4l3 1 1 3h6l1-3 3-1v-4l2-1-2-1V7l-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/>',
+  phone:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4M10 5h4"/>',
   globe:'<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/>',
   grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   book:'<path d="M12 6c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Z"/><path d="M12 6v15"/>',
@@ -34,6 +38,9 @@ let game, lesson = 'lesson1', featuredId = 'mountain', roundStarted = Date.now()
 let filter = 'all', search = '', accountAvailable = false, storageOK = true, feedbackKey = 'ready', feedbackKind = '';
 let busyAnimation = false, roundVersion = 0, saveQueue = Promise.resolve(), syncError = false, pendingSaves = 0, toastTimer;
 let serviceInfo = {storage:'sqlite', deploymentMode:'local', databaseExpiresAt:null};
+let transientHistoryEntry = false;
+let androidRelease = null, releaseLoading = false, releaseFailed = false;
+const VIEWS = ['match','atlas','progress','sources','settings'];
 const cloudService = () => serviceInfo.storage === 'postgres' || serviceInfo.deploymentMode === 'trial';
 const LESSONS = {lesson1:['sun','moon','mountain','wood'], lesson2:['fire','person','eye','mouth'], lesson3:['forest','big','martial','field']};
 const t = (key, values = {}) => Object.entries(values).reduce((text, [k, v]) => text.replaceAll(`{${k}}`, v), dictionaries[language][key] || dictionaries.en[key] || key);
@@ -63,12 +70,38 @@ function setLanguage(next) {
   let preferenceSaved = false;
   try {localStorage.setItem(LANGUAGE_KEY, language); preferenceSaved = true;} catch {storageOK = false;}
   const url = new URL(location.href);
-  if (url.searchParams.has('lang')) {url.searchParams.set('lang',language); history.replaceState(null,'',url);}
-  if (modal.open) modal.close();
+  if (url.searchParams.has('lang')) {url.searchParams.set('lang',language); history.replaceState(history.state,'',url);}
+  if (modal.open) closeModal();
   saveProgress(); shell(); toast(t(preferenceSaved?'languageSaved':'storageError'));
 }
 function showLanguageSettings() {
   openModal('languageSettings', `<p class="modal-lead">${t('interfaceLanguage')}</p><div class="language-options">${Object.entries(LANGUAGE_NAMES).map(([code,name])=>`<button class="${code===language?'primary-button':'secondary-button'}" data-set-language="${code}" lang="${code==='zh'?'zh-CN':code}" aria-pressed="${code===language}">${name}</button>`).join('')}</div><p class="modal-lead">${t('languagePreferenceNote')}</p><p class="source-small">${t('automaticLanguageNote')}</p>`);
+}
+
+function offlineStatus() {
+  return t(mobileState.ready?'pwaOfflineReady':mobileState.failed?'pwaOfflineFailed':mobileState.supported?'pwaPreparing':'pwaUnsupported');
+}
+function mobileMarkup() {
+  if (nativeApp()) return '';
+  return `<section class="record-panel mobile-app-panel"><h2>${t('pwaTitle')}</h2><p data-pwa-status role="status">${offlineStatus()}</p><button class="secondary-button" data-action="app-install">${icon('phone')}${t(mobileState.installed?'pwaAppInfo':'pwaInstall')}</button></section>`;
+}
+function networkMarkup() {
+  if (navigator.onLine || nativeApp()) return '';
+  return `<div class="info-banner offline-banner" role="status"><span>${t(user?'pwaOfflineAccount':'pwaOfflineGuest')}</span>${user?`<button class="text-button" data-action="export">${t('export')}</button>`:''}</div>`;
+}
+function refreshMobileStatus() {
+  document.querySelectorAll('[data-pwa-status]').forEach(node=>{node.textContent=offlineStatus();});
+  const network = $('#network-notice'); if (network) network.innerHTML = networkMarkup();
+  updateSaveState();
+  renderDownloadInfo();
+}
+function showInstallInfo() {
+  openModal('pwaTitle', `<p class="modal-lead">${t(mobileState.installed?'pwaInstalled':'pwaInstallLead')}</p><p class="detail-source" data-pwa-status role="status">${offlineStatus()}</p><ol class="install-steps"><li>${t(installPlatform()==='ios'?'pwaIosStep':'pwaBrowserStep')}</li><li>${t('pwaLaunchStep')}</li></ol><p class="modal-lead">${t('pwaStorageNote')}</p>${mobileState.updateReady?`<p class="detail-source">${t('pwaUpdateReady')}</p>`:''}<div class="modal-actions">${mobileState.canPrompt&&!mobileState.installed?`<button class="primary-button" data-action="install-now">${t('pwaInstall')}</button>`:''}<button class="secondary-button" data-action="close">${t('continue')}</button></div>`);
+}
+async function installNow() {
+  const result = await requestInstall();
+  if (result === 'manual') showInstallInfo();
+  else if (result === 'accepted') {closeModal();toast(t('pwaInstallAccepted'));}
 }
 
 function readGuest() {
@@ -109,7 +142,7 @@ function saveProgress() {
   });
   return saveQueue;
 }
-function saveLabel() {return user ? pendingSaves ? t('saving') : syncError ? t('saveError') : t(cloudService()?'syncedCloud':'synced') : storageOK ? t(nativeApp()?'mobileStorage':'storage') : t('storageError');}
+function saveLabel() {return user ? !navigator.onLine?t('pwaAccountPending'):pendingSaves ? t('saving') : syncError ? t('saveError') : t(cloudService()?'syncedCloud':'synced') : storageOK ? t(nativeApp()?'mobileStorage':'storage') : t('storageError');}
 function trialNotice() {
   if (serviceInfo.deploymentMode !== 'trial') return '';
   const date = serviceInfo.databaseExpiresAt ? new Date(serviceInfo.databaseExpiresAt) : null;
@@ -131,20 +164,21 @@ function startRound(ids) {
 }
 function shell() {
   updateLanguageMetadata();
-  const nav = [['match','grid'],['atlas','book'],['progress','chart'],['sources','source']];
+  const nav = [['match','grid'],['atlas','book'],['progress','chart'],['sources','source'],['settings','settings']];
   app.innerHTML = `<div class="shell">
     <aside class="sidebar"><div class="brand"><span class="brand-stamp" lang="zh">字</span><div class="brand-name">${t('brandName')}<small>${t('brandTagline')}</small></div></div>
     <div class="nav-label">${t('learning')}</div><nav class="nav" aria-label="${t('learning')}">${nav.map(([name,i])=>`<button data-view="${name}" class="${view===name?'active':''}" ${view===name?'aria-current="page"':''}>${icon(i)}<span>${t(name)}</span></button>`).join('')}</nav>
     <div class="sidebar-note">${icon('sprout')}<p>${t('sidebarTagline')}</p><small>${t('growthNote')}</small></div>
     <div class="user-box"><div class="avatar">${user?escape(user.username.slice(0,1)):icon('user')}</div><div class="user-text"><b>${escape(user?.username || t('guest'))}</b><small>${user?t(cloudService()?'serverSaveCloud':'serverSave'):t(nativeApp()?'mobileStorage':'localSave')}</small></div><button data-action="account" aria-label="${t('account')}">${icon('user')}</button></div></aside>
-    <main class="main"><header class="topbar"><div class="mobile-brand"><span class="brand-stamp" lang="zh">字</span>${t('brandName')}</div><div class="breadcrumb">${icon('leaf')}<span>${t('explore')}</span><span>/</span><span>${t(view)}</span></div><div class="top-tools"><span class="version">${t('prototypeVersion')}</span><div class="language-control"><button class="language-label" data-action="language-settings" aria-label="${t('languageSettings')}">${icon('globe')} <span>${t('language')}</span></button><select class="language" id="language" aria-label="${t('chooseLanguage')}">${Object.entries(LANGUAGE_NAMES).map(([code,name])=>`<option value="${code}" ${language===code?'selected':''}>${name}</option>`).join('')}</select></div><button class="round-icon" data-action="account" aria-label="${user?t('account'):t('login')}">${icon('user')}</button></div></header>
-    ${trialNotice()}<div id="view-content"></div><footer class="page-footer"><span>${icon('sprout')}${t('footer')}</span><button id="save-state" class="text-button" style="font-size:inherit;padding:0">${icon('check')}${escape(saveLabel())}</button></footer></main></div>`;
+    <main class="main"><header class="topbar"><div class="mobile-brand"><span class="brand-stamp" lang="zh">字</span><span class="mobile-name">${t('brandName')}</span></div><div class="breadcrumb">${icon('leaf')}<span>${t('explore')}</span><span>/</span><span>${t(view)}</span></div><div class="top-tools"><span class="version">${t('prototypeVersion')}</span><div class="language-control"><button class="language-label" data-action="language-settings" aria-label="${t('languageSettings')}">${icon('globe')} <span>${t('language')}</span></button><select class="language" id="language" aria-label="${t('chooseLanguage')}">${Object.entries(LANGUAGE_NAMES).map(([code,name])=>`<option value="${code}" ${language===code?'selected':''}>${name}</option>`).join('')}</select></div>${nativeApp()?'':`<button class="round-icon app-install-button" data-action="app-install" aria-label="${t(mobileState.installed?'pwaAppInfo':'pwaInstall')}">${icon('phone')}</button>`}<button class="round-icon" data-action="account" aria-label="${user?t('account'):t('login')}">${icon('user')}</button></div></header>
+    <div id="network-notice">${networkMarkup()}</div><div id="view-content"></div>${trialNotice()}<footer class="page-footer"><span>${icon('sprout')}${t('footer')}</span><button id="save-state" class="text-button" style="font-size:inherit;padding:0">${icon('check')}${escape(saveLabel())}</button></footer></main></div>`;
   renderView();
 }
 function renderView() {
   if (view === 'match') renderMatch();
   else if (view === 'atlas') renderAtlas();
   else if (view === 'progress') renderProgress();
+  else if (view === 'settings') renderSettings();
   else renderSources();
 }
 function todayIds() {
@@ -162,12 +196,12 @@ function storyMarkup() {
 function renderMatch() {
   $('#view-content').innerHTML = `<section class="hero"><div><div class="eyebrow">${t('eyebrow')}</div><h1>${t('hero1')}<br><em>${t('hero2')}</em></h1><p>${t('subtitle')}</p></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><img src="${escape(appUrl('/assets/ppt/mountain-picture.png'))}" alt=""><div class="hero-character">山</div><span class="tiny-seal">${t('characterLabel')}</span></div></section>
     <div class="workspace"><div><div class="lesson-tabs" aria-label="${t('learning')}">${['lesson1','lesson2','lesson3','review'].map((name,i)=>`<button class="lesson-tab ${lesson===name?'active':''}" data-lesson="${name}" aria-pressed="${lesson===name}">${t(name)}<span>${i===3?'↻':String(i+1).padStart(2,'0')}</span></button>`).join('')}</div>
-    <section class="play-area" aria-label="${t('match')}"><div class="play-heading"><div><h2>${t('gameTitle')}</h2><p>${t('gameSub')}</p></div><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div>
+    <section class="play-area" aria-label="${t('match')}"><div class="play-heading"><div><h2><span class="desktop-game-title">${t('gameTitle')}</span><span class="mobile-game-title">${t('mobileMatchTitle')}</span></h2><p class="desktop-game-sub">${t('gameSub')}</p><p class="mobile-game-sub">${t('mobileMatchSub')}</p></div><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div>
     <div class="round-meta"><strong id="round-count"></strong><div class="progress-track"><div id="round-fill" class="progress-fill"></div></div><span id="selection-count"></span></div>
     <div class="column-heads">${['picture','ancient','modern'].map((key,i)=>`<div><span>${i+1}</span>${t(key)}</div>`).join('')}</div>
     <div class="board" id="board">${game.cards.map(card=>{const c=byId(card.id);const accessible=card.type==='modern'?c.hanzi:card.type==='picture'?(language==='zh'?c.description:c[language==='es'?'es':'en']):(language==='zh'?c.hint:c[language==='es'?'hintEs':'hintEn']);return `<button class="card ${card.type}" data-card="${card.key}" aria-label="${t(card.type)} · ${escape(accessible)}">${card.type==='modern'?`<span class="hanzi" lang="zh">${c.hanzi}</span><span class="card-seal">${t('characterLabel')}</span>`:`<img src="${escape(appUrl(c[card.type]))}" alt="" draggable="false">`}</button>`;}).join('')}</div>
     <div class="board-footer"><div id="feedback" class="feedback" role="status" aria-live="polite"></div><button class="text-button" data-action="hint">${icon('bulb')}${t('hint')}</button></div></section><p class="board-caption">${t('caption')}</p><button class="text-button" data-action="new-round" style="margin-top:5px">${icon('refresh')}${t('newRound')}</button></div>
-    <aside class="right-column"><section class="story-panel" id="story-panel">${storyMarkup()}</section><section class="goal-panel" id="goal-panel">${goalMarkup()}</section><div class="tip-card">${icon('leaf')}<span>${t('tip')}</span></div></aside></div>`;
+    <aside class="right-column"><section class="story-panel" id="story-panel">${storyMarkup()}</section><section class="goal-panel" id="goal-panel">${goalMarkup()}</section><div class="tip-card">${icon('leaf')}<span>${t('tip')}</span></div><section class="feature-teaser"><small>${t('featureLabel')}</small><h3>${t('featureTitle')}</h3><p>${t('featureLead')}</p><button class="text-button" data-view="settings">${t('promoCta')}${icon('arrow')}</button></section></aside></div>`;
   updateBoard();
 }
 function updateBoard(kind = '') {
@@ -229,13 +263,71 @@ function renderProgress() {
     <div class="stats-grid">${[['practiced',progress.mastered.length,'characters'],['completed',progress.sessions.length,'completed'],['accuracy',attempts?`${Math.round(correct/attempts*100)}%`:'—','session'],['favoriteCount',progress.favorites.length,'characters']].map(([key,n])=>`<div class="stat-box"><small>${t(key)}</small><b>${n}</b><span>${key==='practiced'?t('practiceOnly'):key==='accuracy'?t('completed'):t('characters')}</span></div>`).join('')}</div>
     <section class="record-panel"><h2>${t('practiced')}</h2>${progress.mastered.length?`<div class="character-chips">${progress.mastered.map(id=>`<button class="character-chip" data-detail="${id}">${byId(id).hanzi}<small>${byId(id).pinyin}</small></button>`).join('')}</div><p>${t('notMastery')}</p>`:`<p>${t('noPractice')}</p><button class="primary-button" data-view="match">${t('practiceNow')}${icon('arrow')}</button>`}</section>
     <section class="record-panel"><h2>${t('mistakes')}</h2>${mistakes.length?`<div class="character-chips">${mistakes.map(({c,n})=>`<button class="character-chip" data-detail="${c.id}">${c.hanzi}<small>× ${n}</small></button>`).join('')}</div><p>${t('mistakeNote')}</p><button class="quiet-button" data-action="review-mistakes">${icon('refresh')}${t('practiceMistakes')}</button>`:`<p>${t('noMistakes')}</p>`}</section>
-    <section class="record-panel"><h2>${t('recent')}</h2>${progress.sessions.length ? [...progress.sessions].reverse().slice(0,15).map(s=>`<div class="history-row"><div>${t('session',{n:s.characterIds.length,a:s.attempts})}<small>${new Date(s.completedAt).toLocaleString(language==='zh'?'zh-CN':language)} · ${s.seconds} ${t('seconds')}</small></div><b>${s.characterIds.map(id=>byId(id)?.hanzi||'').join(' ')}</b></div>`).join('') : `<p>${t('historyEmpty')}</p>`}</section><section class="record-panel"><label for="goal-select" style="font-size:12px;margin-right:10px">${t('goal')}</label><select class="goal-select" id="goal-select">${[4,8,12].map(n=>`<option value="${n}" ${progress.dailyGoal===n?'selected':''}>${t('goalOption',{n})}</option>`).join('')}</select></section><section class="record-panel language-settings-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')} ${t('chooseLanguage')} · ${LANGUAGE_NAMES[language]}</button></section>`;
+    <section class="record-panel"><h2>${t('recent')}</h2>${progress.sessions.length ? [...progress.sessions].reverse().slice(0,15).map(s=>`<div class="history-row"><div>${t('session',{n:s.characterIds.length,a:s.attempts})}<small>${new Date(s.completedAt).toLocaleString(language==='zh'?'zh-CN':language)} · ${s.seconds} ${t('seconds')}</small></div><b>${s.characterIds.map(id=>byId(id)?.hanzi||'').join(' ')}</b></div>`).join('') : `<p>${t('historyEmpty')}</p>`}</section><section class="record-panel"><label for="goal-select" style="font-size:12px;margin-right:10px">${t('goal')}</label><select class="goal-select" id="goal-select">${[4,8,12].map(n=>`<option value="${n}" ${progress.dailyGoal===n?'selected':''}>${t('goalOption',{n})}</option>`).join('')}</select></section><section class="record-panel language-settings-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')} ${t('chooseLanguage')} · ${LANGUAGE_NAMES[language]}</button></section>${mobileMarkup()}`;
 }
 function renderSources() {
   $('#view-content').innerHTML = `<section class="view-heading"><div><h1>${t('sourcesTitle')}</h1><p>${t('sourcesSub')}</p></div></section><div class="source-list"><section class="record-panel"><h2>${t('provided')}</h2><p>${t('providedText')}</p><div class="character-chips">${characters.map(c=>`<button class="character-chip" data-detail="${c.id}">${c.hanzi}<small>P.${c.pptSlide}</small></button>`).join('')}</div></section><section class="record-panel"><h2>${t('authority')}</h2><p>${t('authorityText')}</p><div class="source-links">${characters.map(c=>`<a href="${escape(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${c.hanzi} ↗</a>`).join('')}</div></section><section class="record-panel"><h2>${t('boundaries')}</h2><ul>${[1,2,3,4].map(n=>`<li>${t('boundary'+n)}</li>`).join('')}</ul></section><section class="record-panel"><h2>${t('ai')}</h2><p>${t('aiText')}</p></section></div>`;
 }
+function renderDownloadInfo() {
+  const region = $('#android-release');
+  if (!region || nativeApp()) return;
+  if (!navigator.onLine) {region.innerHTML=`<p role="status">${t('androidOffline')}</p>`;return;}
+  if (androidRelease) {
+    region.innerHTML=`<p class="release-version">${t('androidVersion',{v:escape(androidRelease.version),size:(androidRelease.sizeBytes/1024/1024).toFixed(2)})}</p><a class="primary-button apk-download" href="${escape(appUrl(androidRelease.downloadUrl))}" download="ziyu-android.apk">${icon('export')}${t('androidDownload')}</a><p class="source-small">${t('androidTrial')}</p><details class="checksum"><summary>${t('androidChecksum')}</summary><code>${escape(androidRelease.sha256)}</code></details>`;
+  } else {
+    region.innerHTML=`<p role="status">${t(releaseLoading?'androidLoading':'androidUnavailable')}</p>${releaseLoading?'':`<button class="secondary-button" data-action="check-download">${t('androidRetry')}</button>`}`;
+  }
+}
+async function checkDownload() {
+  if (nativeApp() || !navigator.onLine || releaseLoading) return;
+  releaseLoading=true;releaseFailed=false;renderDownloadInfo();
+  try {androidRelease=await fetchAndroidRelease();}
+  catch {releaseFailed=true;}
+  finally {releaseLoading=false;renderDownloadInfo();}
+}
+function renderSettings() {
+  const features=[['Match','grid'],['Language','globe'],['Progress','chart'],['Offline','phone']];
+  $('#view-content').innerHTML=`<section class="view-heading"><div><h1>${t('settingsTitle')}</h1><p>${t('settingsSub')}</p></div></section>
+    <div class="settings-grid"><section class="record-panel android-panel"><h2>${icon('phone')}${t('androidTitle')}</h2><p>${t(nativeApp()?'androidNative':'androidLead')}</p>${nativeApp()?`<a class="primary-button" href="${escape(accountWebsiteLink(language))}" rel="noopener noreferrer">${t('openWebsite')}${icon('arrow')}</a>`:'<div id="android-release" aria-live="polite"></div>'}<p>${t('androidScope')}</p></section>
+    <section class="record-panel"><h2>${t('androidInstallTitle')}</h2><ol class="install-steps"><li>${t('androidStep1')}</li><li>${t('androidStep2')}</li><li>${t('androidStep3')}</li></ol></section></div>
+    <section class="feature-intro"><div><small>${t('featureLabel')}</small><h2>${t('featureTitle')}</h2><p>${t('featureLead')}</p><button class="primary-button" data-view="match">${t('practiceNow')}${icon('arrow')}</button></div><div class="feature-symbols" aria-hidden="true"><span>山</span><span>月</span><span>木</span></div></section>
+    <div class="feature-grid">${features.map(([name,i])=>`<article>${icon(i)}<h3>${t('feature'+name+'Title')}</h3><p>${t('feature'+name+'Text')}</p></article>`).join('')}</div><p class="feature-note">${t('featureNote')}</p>
+    ${mobileMarkup()}<section class="record-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')}${LANGUAGE_NAMES[language]}</button></section>
+    <section class="record-panel"><h2>${t('supportTitle')}</h2><p>${t('supportRecords')}</p><p>${t('supportSpeech')}</p><button class="secondary-button" data-action="export">${icon('export')}${t('export')}</button></section>
+    <section class="record-panel share-panel"><h2>${t('shareWebsite')}</h2><p>${t('copyLinkHelp')}</p><div class="share-actions"><button class="primary-button" data-action="share-website">${icon('arrow')}${t('shareWebsite')}</button><button class="secondary-button" data-action="copy-website">${t('copyWebsite')}</button></div><a class="share-link" href="${escape(websiteLink(language))}">${escape(websiteLink(language))}</a></section>`;
+  renderDownloadInfo();
+  if (!androidRelease && !releaseFailed) checkDownload();
+}
+async function copyWebsite() {
+  const url=websiteLink(language);
+  try {await navigator.clipboard.writeText(url);toast(t('linkCopied'));}
+  catch {openModal('copyWebsite',`<p class="modal-lead">${t('copyLinkHelp')}</p><input class="share-link-input" readonly aria-label="${t('copyWebsite')}" value="${escape(url)}">`);$('.share-link-input')?.select();}
+}
+async function shareWebsite() {
+  if (navigator.share && !nativeApp()) {
+    try {await navigator.share({title:'Ziyu',text:t('featureLead'),url:websiteLink(language)});return;}
+    catch (error) {if(error.name==='AbortError')return;}
+  }
+  await copyWebsite();
+}
+function retireModalRoute() {
+  if (!nativeApp() && history.state?.ziyuDialog) {
+    history.replaceState({...history.state,ziyuView:view,ziyuDialog:false,ziyuTransient:true},'',location.href);
+    transientHistoryEntry = true;
+  }
+}
+function closeModal() {
+  retireModalRoute();
+  if (modal.open) modal.close();
+}
 function openModal(titleKey, content) {
   if (modal.open) modal.close();
+  if (!nativeApp() && !history.state?.ziyuDialog) {
+    const state = {...history.state,ziyuView:view,ziyuDialog:true,ziyuTransient:false};
+    if (history.state?.ziyuTransient) history.replaceState(state,'',location.href);
+    else history.pushState(state,'',location.href);
+  }
+  transientHistoryEntry = false;
   modal.innerHTML = `<div class="modal-header"><h2 id="modal-title">${t(titleKey)}</h2><button class="close-modal" data-action="close" aria-label="${t('close')}">${icon('close')}</button></div>${content}`;
   modal.showModal();
 }
@@ -254,7 +346,7 @@ function showHint() {
   openModal('hint', `<p class="detail-description">${escape(clue)}</p><p class="source-small">${t('guideNote')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('continue')}</button><button class="secondary-button" data-reveal="${hint.id}">${t('answer')}</button></div>`);
 }
 function reveal(id) {
-  modal.close(); game.hints++;
+  closeModal(); game.hints++;
   feedbackKey='answerShown'; feedbackKind=''; updateBoard();
   game.cards.filter(c=>c.id===id).forEach(card => {
     const button = document.querySelector(`[data-card="${card.key}"]`); if (button) {button.classList.remove('hinted'); void button.offsetWidth; button.classList.add('hinted');}
@@ -304,14 +396,14 @@ async function submitAuth(form) {
     try {loaded = normalizeProgress(await api('progress'),validIds());}
     catch (error) {await api('logout',{method:'POST',body:'{}'}).catch(()=>{}); throw error;}
     if (form.elements.merge.checked) loaded=mergeProgress(loaded,guest);
-    user=result.user; progress=loaded; syncError=false; await saveProgress(); modal.close(); startRound(); shell(); toast(t('loggedIn'));
+    user=result.user; progress=loaded; syncError=false; await saveProgress(); closeModal(); startRound(); shell(); toast(t('loggedIn'));
   } catch (error) {if ($('#auth-error')) $('#auth-error').textContent=error.message;}
   finally {if (submit.isConnected) {submit.disabled=false; submit.textContent=t(form.dataset.mode==='login'?'signIn':'signUp');}}
 }
 async function logout() {
   await saveQueue;
   if (syncError) {toast(t('saveError')); return;}
-  try {await api('logout',{method:'POST',body:'{}'}); user=null; progress=readGuest(); syncError=false; modal.close(); startRound(); shell(); toast(t('loggedOut'));}
+  try {await api('logout',{method:'POST',body:'{}'}); user=null; progress=readGuest(); syncError=false; closeModal(); startRound(); shell(); toast(t('loggedOut'));}
   catch(error) {toast(error.message);}
 }
 function exportProgress() {
@@ -339,11 +431,43 @@ window.addEventListener('hanzi-native-speech', event => {
   if (event.detail?.status === 'error') toast(t('pronunciationUnavailable'));
 });
 window.HanziAndroidBack = () => {
-  if (modal.open) {modal.close(); return true;}
+  if (modal.open) {closeModal(); return true;}
   if (view !== 'match') {navigate('match'); return true;}
   return false;
 };
-function navigate(name) {if (!['match','atlas','progress','sources'].includes(name)) return; if (modal.open) modal.close(); view=name; shell(); window.scrollTo({top:0,behavior:'instant'});}
+function navigate(name) {
+  if (!VIEWS.includes(name)) return;
+  if (!nativeApp()) {
+    const url=new URL(location.href);
+    if (name==='settings') url.searchParams.set('page','app');
+    else if (url.searchParams.get('page')==='app') url.searchParams.delete('page');
+    const state = {...history.state,ziyuView:name,ziyuDialog:false,ziyuTransient:false};
+    if (history.state?.ziyuDialog) history.replaceState(state,'',url);
+    else if (view !== name) history.pushState(state,'',url);
+  }
+  transientHistoryEntry = !nativeApp() && !!history.state?.ziyuTransient;
+  if (modal.open) closeModal();
+  view=name; shell(); window.scrollTo({top:0,behavior:'instant'});
+}
+window.addEventListener('popstate',event=>{
+  const state = event.state;
+  if (nativeApp() || !VIEWS.includes(state?.ziyuView)) return;
+  const skipClosedEntry = state.ziyuTransient || (transientHistoryEntry && state.ziyuView === view);
+  transientHistoryEntry = !!state.ziyuTransient;
+  if (skipClosedEntry) {history.back(); return;}
+  // A manual language choice also applies when returning to an older URL.
+  const url=new URL(location.href);
+  if (url.searchParams.has('lang') && url.searchParams.get('lang')!==language) {
+    url.searchParams.set('lang',language);history.replaceState(state,'',url);
+  }
+  if (modal.open) modal.close();
+  // Forward navigation restores the view; dismissed dialog contents are ephemeral.
+  if (state.ziyuDialog) history.replaceState({...state,ziyuDialog:false,ziyuTransient:false},'',location.href);
+  if (view !== state.ziyuView) {view=state.ziyuView;shell();window.scrollTo({top:0,behavior:'instant'});}
+});
+modal.addEventListener('close',()=>{if (!modal.open) retireModalRoute();});
+window.addEventListener('offline',refreshMobileStatus);
+window.addEventListener('online',()=>{refreshMobileStatus();if(view==='settings'&&!androidRelease)checkDownload(); if(!nativeApp()&&!window.HANZI_STATIC_PREVIEW&&!accountAvailable) api('health').then(health=>{serviceInfo={...serviceInfo,...health};accountAvailable=true;}).catch(()=>{});});
 
 document.addEventListener('click', event => {
   const button=event.target.closest('button'); if(!button || button.disabled) return;
@@ -358,8 +482,9 @@ document.addEventListener('click', event => {
   if(d.authMode) return showAccount(d.authMode);
   if(d.lesson) {lesson=d.lesson; startRound(); renderMatch(); return;}
   if(d.filter) {filter=d.filter; renderAtlas(); return;}
-  const actions={'language-settings':showLanguageSettings,guide:showGuide,hint:showHint,account:()=>showAccount(),close:()=>modal.close(),retry:saveProgress,export:exportProgress,logout,
-    'new-round':()=>{startRound();renderMatch();},again:()=>{modal.close();startRound();view='match';shell();},
+  const actions={'app-install':showInstallInfo,'install-now':installNow,'language-settings':showLanguageSettings,guide:showGuide,hint:showHint,account:()=>showAccount(),close:()=>closeModal(),retry:saveProgress,export:exportProgress,logout,
+    'check-download':checkDownload,'share-website':shareWebsite,'copy-website':copyWebsite,
+    'new-round':()=>{startRound();renderMatch();},again:()=>{closeModal();startRound();view='match';shell();},
     'review-mistakes':()=>{const ids=Object.entries(progress.mistakes).sort((a,b)=>b[1]-a[1]).map(([id])=>id).filter(id=>byId(id)?.practiceEligible!==false);lesson='review';startRound(ids);navigate('match');}};
   actions[d.action]?.();
 });
@@ -369,7 +494,7 @@ document.addEventListener('change',event=>{
   if(event.target.id==='goal-select'){progress.dailyGoal=Number(event.target.value);saveProgress();}
 });
 document.addEventListener('submit',event=>{if(event.target.id==='auth-form'){event.preventDefault();submitAuth(event.target);}});
-modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)modal.close();}});
+modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 
 async function init() {
   const response=await fetch(appUrl('data/characters.json')); if(!response.ok)throw new Error('Unable to load character library');
@@ -378,10 +503,15 @@ async function init() {
     const linked = new URLSearchParams(location.search).get('lang');
     if (isLanguage(linked)) localStorage.setItem(LANGUAGE_KEY,linked);
   } catch {}
-  try {if(!window.HANZI_STATIC_PREVIEW){const [result,health]=await Promise.all([api('me'),api('health')]);serviceInfo={...serviceInfo,...health};accountAvailable=true;user=result.user;if(user){progress=normalizeProgress(await api('progress'),validIds());language=initialLanguage(progress.language);}}}
+  try {if(!window.HANZI_STATIC_PREVIEW && navigator.onLine){const [result,health]=await Promise.all([api('me'),api('health')]);serviceInfo={...serviceInfo,...health};accountAvailable=true;user=result.user;if(user){progress=normalizeProgress(await api('progress'),validIds());language=initialLanguage(progress.language);}}}
   catch {if(user){user=null;toast(t('accountOffline'));}accountAvailable=false;}
   progress.language = language;
+  if (!nativeApp()) {
+    if(new URLSearchParams(location.search).get('page')==='app')view='settings';
+    history.replaceState({...history.state,ziyuView:view,ziyuDialog:false,ziyuTransient:false},'',location.href);
+  }
   startRound();shell(); if(!storageOK)toast(t('storageError'));
+  initMobile(refreshMobileStatus);
 }
 language = initialLanguage();
 updateLanguageMetadata();

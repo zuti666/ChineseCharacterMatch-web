@@ -1,13 +1,23 @@
-# 字遇 · 静态学习网页
+# Ziyu · Chinese Character Match
 
-本仓库仅包含汉字学习网页的静态发布文件。
+[English](https://zuti666.github.io/ChineseCharacterMatch-web/?lang=en) · [Español](https://zuti666.github.io/ChineseCharacterMatch-web/?lang=es)
 
-支持图片、PPT 构形教学示意、现代汉字三卡配对、图鉴、收藏、中英西三语和游客浏览器保存。GitHub Pages 版不运行注册登录或 SQLite，账户入口提供本机完整版说明。
+Connect a picture, a teaching sketch, and a modern Chinese character. The prototype includes matching rounds, a character atlas, favorites, local progress, and English, Spanish, and Chinese explanations.
 
-`site/` 为网页发布目录；`.github/workflows/pages.yml` 将其部署到 GitHub Pages。线上地址以仓库 Settings → Pages 中的成功部署结果为准。
+## Mobile website and app
 
-本仓库不包含原始 PPT、Python 后端、用户数据库、账户记录或私有项目开发文件。构形图是教学示意，逐图历史认证及素材授权说明见网页资料页；不得将其当作已认证的考古字形。
+The responsive website supports touch navigation and adding to the home screen in supporting browsers. Wait for the offline-ready notice while online; then matching, the atlas, and guest records can work offline. Browser storage may be cleared by the user or device. System Mandarin voices depend on the device.
 
-网页内容由私有源项目自动导出。请在源项目修改并重新同步，不要将密钥、原始教学材料或用户数据加入此发布仓库。
+Visit the [app support and download page](https://zuti666.github.io/ChineseCharacterMatch-web/?page=app&lang=en) for the approved Android debug APK, current version, minimum Android version, file size, and SHA-256. The APK download requires a connection and is excluded from the PWA cache. The native Android app uses separate local storage and still needs device validation.
 
-静态构建来源版本：`50563c056ac328dc50ae30ce10a2d1bdf07533d2`。
+This GitHub Pages site saves guest records in the current browser. The [cloud account website](https://chinesecharactermatch.onrender.com/?lang=en) provides the separately hosted account service and its trial notice.
+
+## Published contents
+
+`site/` is the public website payload; `.github/workflows/pages.yml` deploys it to GitHub Pages. The payload includes the production 13-character library, its 26 selected pictures, PWA resources, release metadata, and the one approved Android trial package.
+
+Original PPT files, the private review batch, Python backend, user databases, account records, development files, and signing keys remain outside this public repository. Teaching sketches are not authenticated archaeological specimens; source and review notes appear in the app.
+
+The public files are generated from the private source project. Make changes in that source and sync them through the existing publishing workflow.
+
+静态构建来源版本：`7d53597f99f51f487d81c1cc611e270bbaf704d3`。
