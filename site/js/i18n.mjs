@@ -958,4 +958,43 @@ Object.assign(es, {
   "providedText": "La colección reúne dos presentaciones, fotos con licencia, diagramas didácticos propios e imágenes de IA revisadas. Cada entrada registra su procedencia. Los dibujos no son formas arqueológicas autenticadas.",
   "prototypeVersion": "Prototipo de aprendizaje · 0.4"
 });
+Object.assign(zh, {
+  "assetAi": "AI现代图",
+  "assetSlide": "教材示意",
+  "assetPhoto": "已记录许可的图像",
+  "assetOriginal": "原创现代示意",
+  "assetReviewNote": "图字关系已作项目核对；教学示意与AI图不是有年代编号的历史字例，不能替代专家认证。",
+  "assetLicense": "图像许可",
+  "generationBrief": "查看AI生成提示词",
+  "courseChoose": "选择课程",
+  "prototypeVersion": "学习原型 · 0.5",
+  "modeQuad": "四联 · 简繁"
+});
+Object.assign(en, {
+  "assetAi": "AI modern illustration",
+  "assetSlide": "Lesson-deck illustration",
+  "assetPhoto": "Image with recorded license",
+  "assetOriginal": "Original modern diagram",
+  "assetReviewNote": "The project checks image-to-target matching. Teaching diagrams and AI scenes are not dated historical specimens or expert authentication.",
+  "assetLicense": "Image license",
+  "generationBrief": "View the AI image brief",
+  "courseChoose": "Choose a lesson",
+  "prototypeVersion": "Learning prototype · 0.5",
+  "modeQuad": "Four cards"
+});
+Object.assign(es, {
+  "assetAi": "Ilustración moderna de IA",
+  "assetSlide": "Ilustración del material",
+  "assetPhoto": "Imagen con licencia registrada",
+  "assetOriginal": "Diagrama moderno propio",
+  "assetReviewNote": "El proyecto revisa la relación entre imagen y objetivo. Los diagramas y las escenas de IA no son muestras históricas fechadas ni una autenticación experta.",
+  "assetLicense": "Licencia de la imagen",
+  "generationBrief": "Ver el texto de generación de IA",
+  "courseChoose": "Elegir una lección",
+  "prototypeVersion": "Prototipo de aprendizaje · 0.5",
+  "modeQuad": "Cuatro tarjetas"
+});
+Object.assign(zh, {"indicative": "位置与标记"});
+Object.assign(en, {"indicative": "Position and marks"});
+Object.assign(es, {"indicative": "Posición y marcas"});
 export const dictionaries = {zh, en, es};

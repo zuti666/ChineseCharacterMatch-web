@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "publicationStatus": "approved-production",
   "libraryPath": "data/characters.json",
-  "librarySha256": "5b139d2e01e1c063674de6b6c474671088cb9e2e9901b209f30f1fe3e85e631c",
+  "librarySha256": "bc62a904cfef2f76dc482dbf17a11032448bd5792034a16200427267df1fccbb",
   "characters": [
     {
       "id": "sun",
@@ -444,6 +444,214 @@
       "ancient": {
         "path": "assets/expansion/cowrie-form.svg",
         "sha256": "d77cebf28bd8c4d072b23b09c251af2560e2dbef46bd587d045085c7dda2860c"
+      }
+    },
+    {
+      "id": "rain",
+      "simplified": "雨",
+      "traditional": "雨",
+      "picture": {
+        "path": "assets/expansion/batch03/rain-picture.jpg",
+        "sha256": "479c3e6849ead1e4bba77dae2a0401bde4e2431aff302b4e26447eea1f97269c"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/rain-form.svg",
+        "sha256": "07e2d81a8ff784d81f5f115f49884908fa001add145ca992577d52d6b05b0055"
+      }
+    },
+    {
+      "id": "stone",
+      "simplified": "石",
+      "traditional": "石",
+      "picture": {
+        "path": "assets/expansion/batch03/stone-picture.svg",
+        "sha256": "b31a36f81ff37bdb4be8686501fb1be87a9080b5acd4617972c5b29415db5958"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/stone-form.svg",
+        "sha256": "d20978adb8b5b8ae843f2d6dc5eecf8628d03ef5ca594b5af6e18681c4829d82"
+      }
+    },
+    {
+      "id": "soil",
+      "simplified": "土",
+      "traditional": "土",
+      "picture": {
+        "path": "assets/expansion/batch03/soil-picture.png",
+        "sha256": "99c5acd2e204088c0dd1dee07f8745aa6d20d8cd86af30c8221aa83655a739d4"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/soil-form.svg",
+        "sha256": "0922468046bb2d545935586ff5086a227795dc0b39c4f387262c168e511d6f64"
+      }
+    },
+    {
+      "id": "child",
+      "simplified": "子",
+      "traditional": "子",
+      "picture": {
+        "path": "assets/expansion/batch03/child-picture.png",
+        "sha256": "b3fe0d987e0b7e491f445c3577238cb93020bc6455a01dcf6aaef50363a3b010"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/child-form.svg",
+        "sha256": "1b14cce098b822af6fce5a578003d36dd7f876e8bbfb978912f0636fdbfc89ef"
+      }
+    },
+    {
+      "id": "fruit",
+      "simplified": "果",
+      "traditional": "果",
+      "picture": {
+        "path": "assets/expansion/batch03/fruit-picture.jpg",
+        "sha256": "bfbaf6828607d9b94fb54056877497ac32926aa75c09de4abd61bc05ba24e2a7"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/fruit-form.svg",
+        "sha256": "f18443ecde3ff3fa4022dd731dc678fe8b7e52957002a85795a0738309ddec3a"
+      }
+    },
+    {
+      "id": "clothes",
+      "simplified": "衣",
+      "traditional": "衣",
+      "picture": {
+        "path": "assets/expansion/batch03/clothes-picture.png",
+        "sha256": "81c3bdcb143cc08e67ddad4db03e7ed47c624bf879723d6f2f69f4e5472eab41"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/clothes-form.svg",
+        "sha256": "d5786fa39a709232d6d05075e7e3311e26d892818dca83ce5fb4859ad6ccdb09"
+      }
+    },
+    {
+      "id": "net",
+      "simplified": "网",
+      "traditional": "網",
+      "picture": {
+        "path": "assets/expansion/batch03/net-picture.png",
+        "sha256": "3dc680446992403f14880049922bd03aec0554a6f6a09448dd010c9b03df697a"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/net-form.svg",
+        "sha256": "2616dab413b0e8cd5890c2862cdfea886c8246a0dab1062035c56e8ec5555229"
+      }
+    },
+    {
+      "id": "fly",
+      "simplified": "飞",
+      "traditional": "飛",
+      "picture": {
+        "path": "assets/expansion/batch03/fly-picture.png",
+        "sha256": "92f5b56aa926b56e75f2405fd80998d68bf4a924ca928b6c7465409ec9055840"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/fly-form.svg",
+        "sha256": "47a4e63bb937ac1ea29eff52ef76743a815956d9a2637496f20fecde8097ac44"
+      }
+    },
+    {
+      "id": "above",
+      "simplified": "上",
+      "traditional": "上",
+      "picture": {
+        "path": "assets/expansion/batch03/above-picture.svg",
+        "sha256": "c71944c694952ecb1a60cde267efa8c94d77b7bef4321e686b2680267c5cba21"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/above-form.svg",
+        "sha256": "d4a8d335bbf63e6c7649670e54b2502b8d8427f162b28aac01fa150d6fa9778f"
+      }
+    },
+    {
+      "id": "below",
+      "simplified": "下",
+      "traditional": "下",
+      "picture": {
+        "path": "assets/expansion/batch03/below-picture.svg",
+        "sha256": "264fc507e8c15294d7c3b974d9286853114c1720f4664aa59c1456e87c512e70"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/below-form.svg",
+        "sha256": "68bdf483bb03eba30f56fbcbef2067daa9443b2a06c5c34be8569be94fdd0a5a"
+      }
+    },
+    {
+      "id": "root",
+      "simplified": "本",
+      "traditional": "本",
+      "picture": {
+        "path": "assets/expansion/batch03/root-picture.svg",
+        "sha256": "fc680fea67afdeec265121ec0fe2c3a2190681280878b7fe545830577a910c60"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/root-form.svg",
+        "sha256": "ce19ce79890b162ca1f832423c2d291eede9e7390cb7cedb1987aa6dbfe83948"
+      }
+    },
+    {
+      "id": "tip",
+      "simplified": "末",
+      "traditional": "末",
+      "picture": {
+        "path": "assets/expansion/batch03/tip-picture.svg",
+        "sha256": "115bec7643190754692c6e24f6841f09a3481fb4d10cafa31a3e956bf2b01522"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/tip-form.svg",
+        "sha256": "2807b3e3a19ff29a96fd5804e7e61c40c1a2809bc1c384293d6eb5c2a62e5b6c"
+      }
+    },
+    {
+      "id": "bright",
+      "simplified": "明",
+      "traditional": "明",
+      "picture": {
+        "path": "assets/expansion/batch03/bright-picture.svg",
+        "sha256": "9fa599aec1ab7829e943515a0c3b9535ea641104e9d7ea0c1cf2cf6ddd396c83"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/bright-form.svg",
+        "sha256": "d630461d9affcfbfd2a2a4f5ddbb9d785c931a8d316d81d831ff486895535a30"
+      }
+    },
+    {
+      "id": "pointed",
+      "simplified": "尖",
+      "traditional": "尖",
+      "picture": {
+        "path": "assets/expansion/batch03/pointed-picture.svg",
+        "sha256": "2e43165a7eb824dc7e56a1ddf2e77b3636ee5e4aec447a0060b11e6373796edd"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/pointed-form.svg",
+        "sha256": "5a03e2a5c37454b3cae38629795ebd6be678f4c71966f0805e16bd6b8cbc1a40"
+      }
+    },
+    {
+      "id": "follow",
+      "simplified": "从",
+      "traditional": "從",
+      "picture": {
+        "path": "assets/expansion/batch03/follow-picture.png",
+        "sha256": "98fd8bc6e362116be3f8c6bf74891cfe1c245b751c1f4bac559a2b8495a2b326"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/follow-form.svg",
+        "sha256": "b88e241349abb61a73f12f808ab1bdf6eccf78dd5dbb9f33159607c208841c2e"
+      }
+    },
+    {
+      "id": "heart",
+      "simplified": "心",
+      "traditional": "心",
+      "picture": {
+        "path": "assets/expansion/batch03/heart-picture.png",
+        "sha256": "0b6234816e304e056ad9b876c81e97b45ecb74fe6816f16e1b206c19f91df0fa"
+      },
+      "ancient": {
+        "path": "assets/expansion/batch03/heart-form.svg",
+        "sha256": "a9e3005579dd35b714b1cea8a7df4629990c95c472e4add28a2950b3315a95ac"
       }
     }
   ]

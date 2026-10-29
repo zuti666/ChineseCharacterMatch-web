@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "name": "Ziyu",
-  "version": "0.4.0",
-  "versionCode": 3,
+  "version": "0.5.0",
+  "versionCode": 4,
   "applicationId": "io.github.zuti666.ziyu",
   "minSdk": 26,
   "minAndroid": "8.0",
   "debug": true,
-  "productionCharacters": 34,
-  "selectedImages": 68,
+  "productionCharacters": 50,
+  "selectedImages": 100,
   "fileName": "ziyu-android.apk",
   "downloadUrl": "downloads/ziyu-android.apk",
-  "sizeBytes": 16007455,
-  "sha256": "800f9ebc3263c9fa6bb0927b0d447df88725c60d9e4e1269f47db66722b964ac",
+  "sizeBytes": 28674285,
+  "sha256": "0aadfc7a0ca8a073eb160155663528a10d906dade3b7cd604d7bf80f57249d40",
   "deviceTested": false
 }

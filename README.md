@@ -2,7 +2,7 @@
 
 [English](https://zuti666.github.io/ChineseCharacterMatch-web/?lang=en) · [Español](https://zuti666.github.io/ChineseCharacterMatch-web/?lang=es)
 
-Explore 34 learning targets with pictures, teaching forms, pinyin, and stories. Choose simplified or traditional characters in three-card rounds, or connect both scripts in four-card rounds. The prototype includes an atlas, favorites, local progress, and English, Spanish, and Chinese explanations.
+Explore 50 learning targets with pictures, teaching forms, pinyin, and stories. Choose simplified or traditional characters in three-card rounds, or connect both scripts in four-card rounds. The prototype includes an atlas, favorites, local progress, and English, Spanish, and Chinese explanations.
 
 ## Mobile website and app
 
@@ -20,4 +20,4 @@ Original PPT files, the private review batch, Python backend, user databases, ac
 
 The public files are generated from the private source project. Make changes in that source and sync them through the existing publishing workflow.
 
-静态构建来源版本：`1af32b7517f9568e9af2f963bc6c63c040340e29`。
+静态构建来源版本：`5a855b7de4d3e7bf3f29022da999654dc73e2a30`。

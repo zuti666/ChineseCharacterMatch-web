@@ -4,7 +4,7 @@ import {appUrl} from './paths.mjs';
 import {LANGUAGE_KEY, LANGUAGE_NAMES, isLanguage, resolveLanguage} from './language.mjs';
 import {mobileState, initMobile, requestInstall, installPlatform} from './mobile.mjs';
 import {fetchAndroidRelease, websiteLink, accountWebsiteLink} from './downloads.mjs';
-import {MATCH_PREFERENCES_KEY, normalizeMatchPreferences, characterForm, sameForms} from './matching.mjs';
+import {MATCH_PREFERENCES_KEY, normalizeMatchPreferences, characterForm, sameForms, deriveLessons} from './matching.mjs';
 
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -44,7 +44,7 @@ let androidRelease = null, releaseLoading = false, releaseFailed = false;
 let matchPreferences = normalizeMatchPreferences();
 const VIEWS = ['match','atlas','progress','sources','settings'];
 const cloudService = () => serviceInfo.storage === 'postgres' || serviceInfo.deploymentMode === 'trial';
-const LESSONS = {lesson1:['sun','moon','mountain','wood'], lesson2:['fire','person','eye','mouth'], lesson3:['forest','big','martial','field'], lesson4:['gate','horse','bird','fish'], lesson5:['ox','sheep','tiger','bamboo'], lesson6:['cart','boat','knife','cowrie'], lesson7:['hand','foot','ear','rice'], lesson8:['dog','woman','rooster','cloud'], lesson9:['rest','gate','tiger','cowrie']};
+let LESSONS = {}, lessonDefinitions = [];
 const t = (key, values = {}) => Object.entries(values).reduce((text, [k, v]) => text.replaceAll(`{${k}}`, v), dictionaries[language][key] || dictionaries.en[key] || key);
 const nativeApp = () => window.HANZI_ANDROID_APP === true;
 const localized = (c, key) => language === 'zh' ? c[key] : c[key + (language === 'es' ? 'Es' : 'En')];
@@ -57,6 +57,7 @@ const eligible = () => characters.filter(c => c.practiceEligible !== false);
 const glyph = (c,script=matchPreferences.script) => characterForm(c,script);
 const formLang = (script=matchPreferences.script) => script==='traditional'?'zh-Hant':'zh-Hans';
 const isQuad = () => matchPreferences.mode === 'quad';
+const lessonTitle = name => name==='review'?t('review'):(lessonDefinitions.find(l=>l.id===name)?.[language==='zh'?'titleZh':language==='es'?'titleEs':'titleEn'] || name);
 const libraryCounts = () => ({count:characters.length,practice:eligible().length});
 const sourceLine = c => c.pptSlide ? `${c.pptSourceDeck || '汉字.pptx'} · ${t('pptPage',{n:c.pptSlide})}` : t('projectMaterial');
 
@@ -219,7 +220,7 @@ function storyMarkup() {
 }
 function renderMatch() {
   $('#view-content').innerHTML = `<section class="hero"><div><div class="eyebrow">${t('eyebrow')}</div><h1>${t('hero1')}<br><em>${t('hero2')}</em></h1><p>${t('subtitle')}</p></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><img src="${escape(appUrl('/assets/ppt/mountain-picture.png'))}" alt=""><div class="hero-character">山</div><span class="tiny-seal">${t('characterLabel')}</span></div></section>
-    <div class="workspace"><div><div class="lesson-tabs" aria-label="${t('learning')}">${[...Object.keys(LESSONS),'review'].map((name,i)=>`<button class="lesson-tab ${lesson===name?'active':''}" data-lesson="${name}" aria-pressed="${lesson===name}">${t(name)}<span>${name==='review'?'↻':String(i+1).padStart(2,'0')}</span></button>`).join('')}</div>
+    <div class="workspace"><div><div class="lesson-tabs" aria-label="${t('learning')}">${[...Object.keys(LESSONS),'review'].map((name,i)=>`<button class="lesson-tab ${lesson===name?'active':''}" data-lesson="${name}" aria-pressed="${lesson===name}">${escape(lessonTitle(name))}<span>${name==='review'?'↻':String(i+1).padStart(2,'0')}</span></button>`).join('')}</div>
     ${matchSettingsMarkup()}<section class="play-area ${isQuad()?'quad-play':''}" aria-label="${t('match')}"><div class="play-heading"><div><h2><span class="desktop-game-title">${t(isQuad()?'quadTitle':'gameTitle')}</span><span class="mobile-game-title">${t(isQuad()?'quadShort':'mobileMatchTitle')}</span></h2><p class="desktop-game-sub">${t(isQuad()?'quadSub':'gameSub')}</p><p class="mobile-game-sub">${t(isQuad()?'quadSub':'mobileMatchSub')}</p></div><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div>
     <div class="round-meta"><strong id="round-count"></strong><div class="progress-track"><div id="round-fill" class="progress-fill"></div></div><span id="selection-count"></span></div>
     <div class="column-heads">${game.types.map((key,i)=>`<div><span>${i+1}</span>${t(key==='modern'?matchPreferences.script:key)}</div>`).join('')}</div>
@@ -232,6 +233,8 @@ function renderMatch() {
     <div class="board-footer"><div id="feedback" class="feedback" role="status" aria-live="polite"></div><button class="text-button" data-action="hint">${icon('bulb')}${t('hint')}</button></div></section><p class="board-caption">${t('caption')}${isQuad()?`<br>${t('sameFormsNote')}`:''}</p><button class="text-button" data-action="new-round" style="margin-top:5px">${icon('refresh')}${t('newRound')}</button></div>
     <aside class="right-column"><section class="story-panel" id="story-panel">${storyMarkup()}</section><section class="goal-panel" id="goal-panel">${goalMarkup()}</section><div class="tip-card">${icon('leaf')}<span>${t('tip')}</span></div><section class="feature-teaser"><small>${t('featureLabel')}</small><h3>${t('featureTitle')}</h3><p>${t('featureLead')}</p><button class="text-button" data-view="settings">${t('promoCta')}${icon('arrow')}</button></section></aside></div>`;
   updateBoard();
+  const active=$('.lesson-tab.active'),tabs=$('.lesson-tabs');
+  if(active&&tabs)tabs.scrollLeft=Math.max(0,active.offsetLeft-tabs.offsetLeft-tabs.clientWidth/2+active.clientWidth/2);
 }
 function updateBoard(kind = '') {
   if (view !== 'match' || !$('#board')) return;
@@ -360,6 +363,17 @@ function openModal(titleKey, content) {
   modal.innerHTML = `<div class="modal-header"><h2 id="modal-title">${t(titleKey)}</h2><button class="close-modal" data-action="close" aria-label="${t('close')}">${icon('close')}</button></div>${content}`;
   modal.showModal();
 }
+function assetOriginKey(asset) {
+  const kind=(asset.originKind||'').toLowerCase();
+  return kind.includes('ai-generated')?'assetAi':kind.includes('ppt')?'assetSlide':kind.includes('commons')||kind.includes('licensed')?'assetPhoto':'assetOriginal';
+}
+function currentAssetCredits(c) {
+  return (c.assets||[]).filter(a=>a.path===c[a.role==='form'?'ancient':'picture']);
+}
+function assetBadges(c) {
+  return `<div class="asset-badges">${currentAssetCredits(c).map(a=>`<span class="asset-badge ${assetOriginKey(a)==='assetAi'?'ai-asset':''}">${t(a.role==='form'?'ancient':'picture')} · ${t(assetOriginKey(a))}</span>`).join('')}</div>`;
+}
+
 function showDetail(id) {
   const c = byId(id); if (!c) return;
   const caseText = localized(c,'caseExplanation');
@@ -367,14 +381,14 @@ function showDetail(id) {
   const mnemonic = localized(c,'mnemonicExplanation');
   const relation = localized(c,'simplificationStory');
   const written = isQuad()?['simplified','traditional']:[matchPreferences.script];
-  const credits = (c.assets||[]).filter(a=>a.attributionText||a.sourcePageUrl||a.licenseStatus);
+  const credits = currentAssetCredits(c);
   openModal('detail', `<div class="detail-pinyin"><span>${c.pinyin} · ${escape(meaning(c))}</span><button data-speak="${c.id}" aria-label="${t('speak')}">${icon('sound')}</button></div>
     <div class="detail-timeline ${isQuad()?'quad-detail':''}"><div class="detail-step"><img src="${escape(appUrl(c.picture))}" alt="${escape(meaning(c))}"><small>${t('picture')}</small></div><span class="timeline-arrow">↔</span><div class="detail-step"><img src="${escape(appUrl(c.ancient))}" alt="${escape(localized(c,'ancientLabel')||t('ancient'))}"><small>${t('ancient')}</small></div>${written.map(script=>`<span class="timeline-arrow">↔</span><div class="detail-step"><div class="hanzi" lang="${formLang(script)}">${escape(glyph(c,script))}</div><small>${t(script)}</small></div>`).join('')}</div>
     <p class="source-small">${t('notTimeline')}</p><div class="script-pair"><span lang="zh-Hans">${escape(glyph(c,'simplified'))}</span><span>↔</span><span lang="zh-Hant">${escape(glyph(c,'traditional'))}</span><small>${t(sameForms(c)?'sameForms':'differentForms')}</small></div>
-    <p class="detail-description">${escape(description(c))}</p>${historical?`<section class="detail-source story-section"><strong>${t('referenceStory')}</strong><p>${escape(historical)}</p></section>`:''}${mnemonic?`<section class="detail-source story-section"><strong>${t('mnemonicStory')}</strong><p>${escape(mnemonic)}</p></section>`:''}${relation?`<section class="detail-source story-section"><strong>${t('simplificationStory')}</strong><p>${escape(relation)}</p></section>`:''}
+    <p class="detail-description">${escape(description(c))}</p>${assetBadges(c)}<p class="source-small asset-review-note">${t('assetReviewNote')}</p>${historical?`<section class="detail-source story-section"><strong>${t('referenceStory')}</strong><p>${escape(historical)}</p></section>`:''}${mnemonic?`<section class="detail-source story-section"><strong>${t('mnemonicStory')}</strong><p>${escape(mnemonic)}</p></section>`:''}${relation?`<section class="detail-source story-section"><strong>${t('simplificationStory')}</strong><p>${escape(relation)}</p></section>`:''}
     ${caseText?`<div class="detail-source"><strong>${escape(localized(c,'caseTitle') || t('case'))}</strong><span class="case-badge">${t(c.caseType||'mnemonic')}</span><br>${escape(caseText)}</div>`:''}
     <div class="detail-source" style="margin-top:12px"><strong>${t('warning')}</strong><br>${c.id==='water'?t('waterWarning'):escape(localized(c,'ancientLabel')||t('warningText'))}${c.contentWarning&&c.id!=='water'?`<br>${escape(localized(c,'contentWarning')||t('warningText'))}`:''}<br><span>${escape(sourceLine(c))}</span><a href="${escape(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escape(localized(c,'sourceTitle') || c.sourceTitle)} ↗</a><small>${escape(localized(c,'reviewScope')||t('reviewRequired'))}</small></div>
-    ${credits.length?`<details class="asset-credits"><summary>${t('originLabel')}</summary>${credits.map(a=>`<p><b>${t(a.role==='form'?'ancient':a.role)}</b> · ${escape(a.attributionText||a.sourceTitle||'')}<br>${escape(a.licenseStatus||'')}${a.sourcePageUrl?` · <a href="${escape(a.sourcePageUrl)}" target="_blank" rel="noopener noreferrer">${t('openSource')} ↗</a>`:''}</p>`).join('')}</details>`:''}
+    ${credits.length?`<details class="asset-credits"><summary>${t('originLabel')}</summary>${credits.map(a=>`<div class="asset-credit"><b>${t(a.role==='form'?'ancient':a.role)}</b> · ${escape(a.attributionText||a.sourceTitle||'')}<br>${escape(a.licenseStatus||'')}${a.sourcePageUrl?` · <a href="${escape(a.sourcePageUrl)}" target="_blank" rel="noopener noreferrer">${t('openSource')} ↗</a>`:''}${a.licenseUrl?` · <a href="${escape(a.licenseUrl)}" target="_blank" rel="noopener noreferrer">${t('assetLicense')} ↗</a>`:''}<br><small>${escape(a.visualReviewStatus||t('assetReviewNote'))}</small>${a.generationPrompt?`<details class="generation-brief"><summary>${t('generationBrief')}</summary><p>${escape(a.generationPrompt)}</p><small>${escape(a.generationTool||'image_gen.imagegen')}</small></details>`:''}</div>`).join('')}</details>`:''}
     <div class="modal-actions"><button class="secondary-button" data-favorite="${c.id}" aria-pressed="${progress.favorites.includes(id)}">${icon('star')}${progress.favorites.includes(id)?t('unfavorite'):t('favorite')}</button><button class="primary-button" data-action="close">${t('continue')}${icon('arrow')}</button></div>`);
 }
 function showGuide() {
@@ -523,7 +537,7 @@ document.addEventListener('click', event => {
   if(d.favorite) return toggleFavorite(d.favorite);
   if(d.reveal) return reveal(d.reveal);
   if(d.authMode) return showAccount(d.authMode);
-  if(d.lesson) {lesson=d.lesson; startRound(); renderMatch(); return;}
+  if(d.lesson) {lesson=d.lesson; const url=new URL(location.href);if(url.searchParams.has('lesson')){url.searchParams.set('lesson',lesson);history.replaceState(history.state,'',url);}startRound();renderMatch();return;}
   if(d.filter) {filter=d.filter; renderAtlas(); return;}
   const actions={'app-install':showInstallInfo,'install-now':installNow,'language-settings':showLanguageSettings,guide:showGuide,hint:showHint,account:()=>showAccount(),close:()=>closeModal(),retry:saveProgress,export:exportProgress,logout,
     'check-download':checkDownload,'share-website':shareWebsite,'copy-website':copyWebsite,
@@ -544,6 +558,8 @@ modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.ge
 async function init() {
   const response=await fetch(appUrl('data/characters.json')); if(!response.ok)throw new Error('Unable to load character library');
   characters=await response.json();
+  lessonDefinitions=deriveLessons(characters);
+  LESSONS=Object.fromEntries(lessonDefinitions.map(l=>[l.id,l.characterIds]));
   try {matchPreferences=normalizeMatchPreferences(JSON.parse(localStorage.getItem(MATCH_PREFERENCES_KEY)));}catch{}
   const linkedPreferences=new URLSearchParams(location.search);
   if(['triple','quad'].includes(linkedPreferences.get('mode')))matchPreferences.mode=linkedPreferences.get('mode');
