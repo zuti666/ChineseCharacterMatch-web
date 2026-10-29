@@ -1,9 +1,10 @@
-import {createRound, selectCard, settleSelection, hintFor, shuffle, emptyProgress, normalizeProgress} from './engine.mjs';
+import {QUAD_TYPES, createRound, selectCard, settleSelection, hintFor, shuffle, emptyProgress, normalizeProgress} from './engine.mjs';
 import {dictionaries} from './i18n.mjs';
 import {appUrl} from './paths.mjs';
 import {LANGUAGE_KEY, LANGUAGE_NAMES, isLanguage, resolveLanguage} from './language.mjs';
 import {mobileState, initMobile, requestInstall, installPlatform} from './mobile.mjs';
 import {fetchAndroidRelease, websiteLink, accountWebsiteLink} from './downloads.mjs';
+import {MATCH_PREFERENCES_KEY, normalizeMatchPreferences, characterForm, sameForms} from './matching.mjs';
 
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -40,9 +41,10 @@ let busyAnimation = false, roundVersion = 0, saveQueue = Promise.resolve(), sync
 let serviceInfo = {storage:'sqlite', deploymentMode:'local', databaseExpiresAt:null};
 let transientHistoryEntry = false;
 let androidRelease = null, releaseLoading = false, releaseFailed = false;
+let matchPreferences = normalizeMatchPreferences();
 const VIEWS = ['match','atlas','progress','sources','settings'];
 const cloudService = () => serviceInfo.storage === 'postgres' || serviceInfo.deploymentMode === 'trial';
-const LESSONS = {lesson1:['sun','moon','mountain','wood'], lesson2:['fire','person','eye','mouth'], lesson3:['forest','big','martial','field']};
+const LESSONS = {lesson1:['sun','moon','mountain','wood'], lesson2:['fire','person','eye','mouth'], lesson3:['forest','big','martial','field'], lesson4:['gate','horse','bird','fish'], lesson5:['ox','sheep','tiger','bamboo'], lesson6:['cart','boat','knife','cowrie'], lesson7:['hand','foot','ear','rice'], lesson8:['dog','woman','rooster','cloud'], lesson9:['rest','gate','tiger','cowrie']};
 const t = (key, values = {}) => Object.entries(values).reduce((text, [k, v]) => text.replaceAll(`{${k}}`, v), dictionaries[language][key] || dictionaries.en[key] || key);
 const nativeApp = () => window.HANZI_ANDROID_APP === true;
 const localized = (c, key) => language === 'zh' ? c[key] : c[key + (language === 'es' ? 'Es' : 'En')];
@@ -52,6 +54,25 @@ const meaning = c => language === 'es' ? c.es : c.en;
 const description = c => language === 'zh' ? c.description : language === 'es' ? c.descriptionEs || c.descriptionEn : c.descriptionEn;
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const eligible = () => characters.filter(c => c.practiceEligible !== false);
+const glyph = (c,script=matchPreferences.script) => characterForm(c,script);
+const formLang = (script=matchPreferences.script) => script==='traditional'?'zh-Hant':'zh-Hans';
+const isQuad = () => matchPreferences.mode === 'quad';
+const libraryCounts = () => ({count:characters.length,practice:eligible().length});
+const sourceLine = c => c.pptSlide ? `${c.pptSourceDeck || '汉字.pptx'} · ${t('pptPage',{n:c.pptSlide})}` : t('projectMaterial');
+
+function matchSettingsMarkup() {
+  return `<div class="match-controls"><label for="match-mode">${t('matchMode')}<select id="match-mode"><option value="triple" ${isQuad()?'':'selected'}>${t('modeTriple')}</option><option value="quad" ${isQuad()?'selected':''}>${t('modeQuad')}</option></select></label><label for="match-script">${t('scriptChoice')}<select id="match-script"><option value="simplified" ${matchPreferences.script==='simplified'?'selected':''}>${t('simplified')}</option><option value="traditional" ${matchPreferences.script==='traditional'?'selected':''}>${t('traditional')}</option></select></label></div>`;
+}
+function setMatchPreference(name,value) {
+  if (!(['mode','script'].includes(name)) || !(name==='mode'?['triple','quad']:['simplified','traditional']).includes(value)) return;
+  const changed = name==='mode' && value!==matchPreferences.mode;
+  matchPreferences=normalizeMatchPreferences({...matchPreferences,[name]:value});
+  try {localStorage.setItem(MATCH_PREFERENCES_KEY,JSON.stringify(matchPreferences));}catch{storageOK=false;}
+  const url=new URL(location.href);
+  if(url.searchParams.has(name)) {url.searchParams.set(name,value);history.replaceState(history.state,'',url);}
+  if(changed)startRound();
+  shell();toast(t(changed?'modeNewRound':'preferenceSaved'));
+}
 
 function initialLanguage(legacyLanguage) {
   let savedLanguage;
@@ -79,7 +100,7 @@ function showLanguageSettings() {
 }
 
 function offlineStatus() {
-  return t(mobileState.ready?'pwaOfflineReady':mobileState.failed?'pwaOfflineFailed':mobileState.supported?'pwaPreparing':'pwaUnsupported');
+  return t(mobileState.ready?'pwaOfflineReady':mobileState.failed?'pwaOfflineFailed':mobileState.supported?'pwaPreparing':'pwaUnsupported',libraryCounts());
 }
 function mobileMarkup() {
   if (nativeApp()) return '';
@@ -154,12 +175,15 @@ function updateSaveState() {
 }
 function startRound(ids) {
   roundVersion++; busyAnimation = false;
-  const chosen = ids ? ids.map(byId).filter(c => c && c.practiceEligible !== false) : lesson === 'review' ? shuffle(eligible()).slice(0,4) : (LESSONS[lesson] || LESSONS.lesson1).map(byId).filter(Boolean);
-  const unique = [...new Map(chosen.map(c => [c.id,c])).values()].slice(0,4);
-  if (unique.length < 4) {
-    for (const c of shuffle(eligible())) if (!unique.some(x => x.id === c.id) && unique.length < 4) unique.push(c);
+  const primary = ids ? ids.map(byId).filter(Boolean) : lesson==='review' ? shuffle(eligible()) : (LESSONS[lesson]||LESSONS.lesson1).map(byId).filter(Boolean);
+  const candidates=[...new Map([...primary,...shuffle(eligible())].filter(c=>c.practiceEligible!==false).map(c=>[c.id,c])).values()];
+  const unique=[];
+  for(const c of candidates) {
+    if(unique.every(other=>!(c.confusionGroups||[]).some(group=>(other.confusionGroups||[]).includes(group))))unique.push(c);
+    if(unique.length===4)break;
   }
-  game = createRound(unique); roundStarted = Date.now(); roundSaved = false; feedbackKey = 'ready'; feedbackKind = '';
+  if(unique.length<4)throw new Error('Not enough compatible practice targets');
+  game = createRound(unique,Math.random,isQuad()?{types:QUAD_TYPES}:{}); roundStarted = Date.now(); roundSaved = false; feedbackKey = 'ready'; feedbackKind = '';
   featuredId = unique.find(c => c.id === 'mountain')?.id || unique[0].id;
 }
 function shell() {
@@ -191,16 +215,21 @@ function goalMarkup() {
 }
 function storyMarkup() {
   const c = byId(featuredId);
-  return `<div class="panel-eyebrow">${t('story')} · ${t('closerLook')}</div><div class="story-title"><div class="story-hanzi" lang="zh">${c.hanzi}</div><button class="round-icon" data-speak="${c.id}" aria-label="${t('speak')} · ${c.hanzi}">${icon('sound')}</button></div><div class="story-pinyin">${c.pinyin}</div><div class="story-meaning">${escape(meaning(c))}</div><div class="divider"></div><p>${escape(description(c))}</p><div class="source-small">${t('pptPage',{n:c.pptSlide})} · ${t('reviewRequired')}</div><button class="text-button" data-detail="${c.id}">${t('detail')} ${icon('arrow')}</button>`;
+  return `<div class="panel-eyebrow">${t('story')} · ${t('closerLook')}</div><div class="story-title"><div class="story-hanzi" lang="zh">${escape(glyph(c))}</div><button class="round-icon" data-speak="${c.id}" aria-label="${t('speak')} · ${escape(glyph(c))}">${icon('sound')}</button></div><div class="story-pinyin">${c.pinyin}</div><div class="story-meaning">${escape(meaning(c))}</div><div class="divider"></div><p>${escape(description(c))}</p><div class="source-small">${escape(sourceLine(c))} · ${t('reviewRequired')}</div><button class="text-button" data-detail="${c.id}">${t('detail')} ${icon('arrow')}</button>`;
 }
 function renderMatch() {
   $('#view-content').innerHTML = `<section class="hero"><div><div class="eyebrow">${t('eyebrow')}</div><h1>${t('hero1')}<br><em>${t('hero2')}</em></h1><p>${t('subtitle')}</p></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><img src="${escape(appUrl('/assets/ppt/mountain-picture.png'))}" alt=""><div class="hero-character">山</div><span class="tiny-seal">${t('characterLabel')}</span></div></section>
-    <div class="workspace"><div><div class="lesson-tabs" aria-label="${t('learning')}">${['lesson1','lesson2','lesson3','review'].map((name,i)=>`<button class="lesson-tab ${lesson===name?'active':''}" data-lesson="${name}" aria-pressed="${lesson===name}">${t(name)}<span>${i===3?'↻':String(i+1).padStart(2,'0')}</span></button>`).join('')}</div>
-    <section class="play-area" aria-label="${t('match')}"><div class="play-heading"><div><h2><span class="desktop-game-title">${t('gameTitle')}</span><span class="mobile-game-title">${t('mobileMatchTitle')}</span></h2><p class="desktop-game-sub">${t('gameSub')}</p><p class="mobile-game-sub">${t('mobileMatchSub')}</p></div><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div>
+    <div class="workspace"><div><div class="lesson-tabs" aria-label="${t('learning')}">${[...Object.keys(LESSONS),'review'].map((name,i)=>`<button class="lesson-tab ${lesson===name?'active':''}" data-lesson="${name}" aria-pressed="${lesson===name}">${t(name)}<span>${name==='review'?'↻':String(i+1).padStart(2,'0')}</span></button>`).join('')}</div>
+    ${matchSettingsMarkup()}<section class="play-area ${isQuad()?'quad-play':''}" aria-label="${t('match')}"><div class="play-heading"><div><h2><span class="desktop-game-title">${t(isQuad()?'quadTitle':'gameTitle')}</span><span class="mobile-game-title">${t(isQuad()?'quadShort':'mobileMatchTitle')}</span></h2><p class="desktop-game-sub">${t(isQuad()?'quadSub':'gameSub')}</p><p class="mobile-game-sub">${t(isQuad()?'quadSub':'mobileMatchSub')}</p></div><button class="quiet-button" data-action="guide">${icon('help')}${t('guide')}</button></div>
     <div class="round-meta"><strong id="round-count"></strong><div class="progress-track"><div id="round-fill" class="progress-fill"></div></div><span id="selection-count"></span></div>
-    <div class="column-heads">${['picture','ancient','modern'].map((key,i)=>`<div><span>${i+1}</span>${t(key)}</div>`).join('')}</div>
-    <div class="board" id="board">${game.cards.map(card=>{const c=byId(card.id);const accessible=card.type==='modern'?c.hanzi:card.type==='picture'?(language==='zh'?c.description:c[language==='es'?'es':'en']):(language==='zh'?c.hint:c[language==='es'?'hintEs':'hintEn']);return `<button class="card ${card.type}" data-card="${card.key}" aria-label="${t(card.type)} · ${escape(accessible)}">${card.type==='modern'?`<span class="hanzi" lang="zh">${c.hanzi}</span><span class="card-seal">${t('characterLabel')}</span>`:`<img src="${escape(appUrl(c[card.type]))}" alt="" draggable="false">`}</button>`;}).join('')}</div>
-    <div class="board-footer"><div id="feedback" class="feedback" role="status" aria-live="polite"></div><button class="text-button" data-action="hint">${icon('bulb')}${t('hint')}</button></div></section><p class="board-caption">${t('caption')}</p><button class="text-button" data-action="new-round" style="margin-top:5px">${icon('refresh')}${t('newRound')}</button></div>
+    <div class="column-heads">${game.types.map((key,i)=>`<div><span>${i+1}</span>${t(key==='modern'?matchPreferences.script:key)}</div>`).join('')}</div>
+    <div class="board" id="board">${game.cards.map(card=>{
+      const c=byId(card.id), written=['modern','simplified','traditional'].includes(card.type);
+      const script=card.type==='modern'?matchPreferences.script:card.type;
+      const accessible=written?glyph(c,script):card.type==='picture'?meaning(c):localized(c,'hint');
+      return `<button class="card ${card.type} ${written?'written-card':''}" data-card="${card.key}" aria-label="${t(card.type==='modern'?matchPreferences.script:card.type)} · ${escape(accessible)}">${written?`<span class="hanzi" lang="${formLang(script)}">${escape(glyph(c,script))}</span><span class="card-seal">${t(script)}</span>`:`<img src="${escape(appUrl(c[card.type]))}" alt="" draggable="false">`}</button>`;
+    }).join('')}</div>
+    <div class="board-footer"><div id="feedback" class="feedback" role="status" aria-live="polite"></div><button class="text-button" data-action="hint">${icon('bulb')}${t('hint')}</button></div></section><p class="board-caption">${t('caption')}${isQuad()?`<br>${t('sameFormsNote')}`:''}</p><button class="text-button" data-action="new-round" style="margin-top:5px">${icon('refresh')}${t('newRound')}</button></div>
     <aside class="right-column"><section class="story-panel" id="story-panel">${storyMarkup()}</section><section class="goal-panel" id="goal-panel">${goalMarkup()}</section><div class="tip-card">${icon('leaf')}<span>${t('tip')}</span></div><section class="feature-teaser"><small>${t('featureLabel')}</small><h3>${t('featureTitle')}</h3><p>${t('featureLead')}</p><button class="text-button" data-view="settings">${t('promoCta')}${icon('arrow')}</button></section></aside></div>`;
   updateBoard();
 }
@@ -214,7 +243,7 @@ function updateBoard(kind = '') {
   });
   $('#round-count').textContent = `${game.matched.length} / ${game.ids.length} ${t('groups')}`;
   $('#round-fill').style.width = `${game.matched.length / game.ids.length * 100}%`;
-  $('#selection-count').textContent = t('selectedCount',{n:game.selected.length});
+  $('#selection-count').textContent = t('selectedCount',{n:game.selected.length,total:game.types.length});
   $('#feedback').textContent = t(feedbackKey); $('#feedback').className = `feedback ${feedbackKind}`;
 }
 function handleCard(key) {
@@ -241,7 +270,7 @@ function handleCard(key) {
 function finishRound() {
   if (roundSaved) return; roundSaved = true;
   const seconds = Math.max(1,Math.round((Date.now()-roundStarted)/1000));
-  progress.sessions.push({id:uid(),completedAt:new Date().toISOString(),correct:game.correct,attempts:game.attempts,seconds,characterIds:[...game.ids]});
+  progress.sessions.push({id:uid(),completedAt:new Date().toISOString(),correct:game.correct,attempts:game.attempts,seconds,characterIds:[...game.ids],matchMode:isQuad()?'quad':'triple',script:matchPreferences.script});
   progress.sessions = progress.sessions.slice(-200); saveProgress();
   if ($('#goal-panel')) $('#goal-panel').innerHTML = goalMarkup();
   openModal('resultTitle', `<div class="result-summary"><div class="success-art">${icon('sprout')}</div><h3>${t('resultTitle')}</h3><p>${t('resultSub',{n:game.ids.length})}</p></div><div class="result-stats"><div><b>${game.ids.length}</b><small>${t('characters')}</small></div><div><b>${Math.round(game.correct/game.attempts*100)}%</b><small>${t('accuracy')}</small></div><div><b>${game.hints}</b><small>${t('roundHints')}</small></div></div><p class="modal-lead">${t('resultNote')}</p><div class="modal-actions"><button class="primary-button" data-action="again">${t('again')}${icon('arrow')}</button><button class="secondary-button" data-view="progress">${t('seeProgress')}</button></div>`);
@@ -252,8 +281,8 @@ function renderAtlas() {
 }
 function renderAtlasCards() {
   const query = search.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const found = characters.filter(c => (filter === 'all' || (filter === 'favorites' ? progress.favorites.includes(c.id) : c.category === filter)) && [c.hanzi,c.pinyin,c.en,c.es,c.description,c.descriptionEn,c.descriptionEs].join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(query));
-  $('#atlas-grid').innerHTML = found.length ? found.map(c=>`<article class="atlas-card"><button data-detail="${c.id}" aria-label="${t('detail')} · ${c.hanzi}"><div class="atlas-images"><img src="${escape(appUrl(c.picture))}" alt=""><span>→</span><img src="${escape(appUrl(c.ancient))}" alt=""></div><div class="atlas-bottom"><strong lang="zh">${c.hanzi}</strong><div>${c.pinyin}<small>${escape(meaning(c))}</small></div></div>${c.contentWarning?`<div class="source-small" style="margin-top:8px;color:#ab805c">${c.id==='water'?t('libraryWarning'):t('originalWarning')}</div>`:''}</button><button class="favorite-button ${progress.favorites.includes(c.id)?'on':''}" data-favorite="${c.id}" aria-label="${progress.favorites.includes(c.id)?t('unfavorite'):t('favorite')} · ${c.hanzi}" aria-pressed="${progress.favorites.includes(c.id)}">${icon('star')}</button></article>`).join('') : `<div class="empty-state">${icon('search')}${t('noResults')}</div>`;
+  const found = characters.filter(c => (filter === 'all' || (filter === 'favorites' ? progress.favorites.includes(c.id) : c.category === filter)) && [c.hanzi,c.simplified,c.traditional,c.pinyin,c.en,c.es,c.description,c.descriptionEn,c.descriptionEs].join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(query));
+  $('#atlas-grid').innerHTML = found.length ? found.map(c=>`<article class="atlas-card"><button data-detail="${c.id}" aria-label="${t('detail')} · ${escape(glyph(c))}"><div class="atlas-images"><img src="${escape(appUrl(c.picture))}" alt=""><span>→</span><img src="${escape(appUrl(c.ancient))}" alt=""></div><div class="atlas-bottom"><strong lang="zh">${escape(glyph(c))}</strong><div>${c.pinyin}<small>${escape(meaning(c))}</small></div></div>${c.contentWarning?`<div class="source-small" style="margin-top:8px;color:#ab805c">${c.id==='water'?t('libraryWarning'):t('originalWarning')}</div>`:''}</button><button class="favorite-button ${progress.favorites.includes(c.id)?'on':''}" data-favorite="${c.id}" aria-label="${progress.favorites.includes(c.id)?t('unfavorite'):t('favorite')} · ${escape(glyph(c))}" aria-pressed="${progress.favorites.includes(c.id)}">${icon('star')}</button></article>`).join('') : `<div class="empty-state">${icon('search')}${t('noResults')}</div>`;
 }
 function renderProgress() {
   const attempts = progress.sessions.reduce((n,s)=>n+s.attempts,0), correct = progress.sessions.reduce((n,s)=>n+s.correct,0);
@@ -261,12 +290,12 @@ function renderProgress() {
   $('#view-content').innerHTML = `<section class="view-heading"><div><h1>${t('progressTitle')}</h1><p>${t('progressSub')}</p></div><button class="quiet-button" data-action="export">${icon('export')}${t('export')}</button></section>
     <div class="info-banner"><span>${t(user?'userNote':nativeApp()?'mobileGuestNote':cloudService()?'guestNoteCloud':'guestNote',{name:escape(user?.username)})}</span>${!user?`<button class="text-button" data-action="account">${t('login')} ${icon('arrow')}</button>`:''}</div>
     <div class="stats-grid">${[['practiced',progress.mastered.length,'characters'],['completed',progress.sessions.length,'completed'],['accuracy',attempts?`${Math.round(correct/attempts*100)}%`:'—','session'],['favoriteCount',progress.favorites.length,'characters']].map(([key,n])=>`<div class="stat-box"><small>${t(key)}</small><b>${n}</b><span>${key==='practiced'?t('practiceOnly'):key==='accuracy'?t('completed'):t('characters')}</span></div>`).join('')}</div>
-    <section class="record-panel"><h2>${t('practiced')}</h2>${progress.mastered.length?`<div class="character-chips">${progress.mastered.map(id=>`<button class="character-chip" data-detail="${id}">${byId(id).hanzi}<small>${byId(id).pinyin}</small></button>`).join('')}</div><p>${t('notMastery')}</p>`:`<p>${t('noPractice')}</p><button class="primary-button" data-view="match">${t('practiceNow')}${icon('arrow')}</button>`}</section>
-    <section class="record-panel"><h2>${t('mistakes')}</h2>${mistakes.length?`<div class="character-chips">${mistakes.map(({c,n})=>`<button class="character-chip" data-detail="${c.id}">${c.hanzi}<small>× ${n}</small></button>`).join('')}</div><p>${t('mistakeNote')}</p><button class="quiet-button" data-action="review-mistakes">${icon('refresh')}${t('practiceMistakes')}</button>`:`<p>${t('noMistakes')}</p>`}</section>
-    <section class="record-panel"><h2>${t('recent')}</h2>${progress.sessions.length ? [...progress.sessions].reverse().slice(0,15).map(s=>`<div class="history-row"><div>${t('session',{n:s.characterIds.length,a:s.attempts})}<small>${new Date(s.completedAt).toLocaleString(language==='zh'?'zh-CN':language)} · ${s.seconds} ${t('seconds')}</small></div><b>${s.characterIds.map(id=>byId(id)?.hanzi||'').join(' ')}</b></div>`).join('') : `<p>${t('historyEmpty')}</p>`}</section><section class="record-panel"><label for="goal-select" style="font-size:12px;margin-right:10px">${t('goal')}</label><select class="goal-select" id="goal-select">${[4,8,12].map(n=>`<option value="${n}" ${progress.dailyGoal===n?'selected':''}>${t('goalOption',{n})}</option>`).join('')}</select></section><section class="record-panel language-settings-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')} ${t('chooseLanguage')} · ${LANGUAGE_NAMES[language]}</button></section>${mobileMarkup()}`;
+    <section class="record-panel"><h2>${t('practiced')}</h2>${progress.mastered.length?`<div class="character-chips">${progress.mastered.map(id=>`<button class="character-chip" data-detail="${id}">${escape(glyph(byId(id)))}<small>${byId(id).pinyin}</small></button>`).join('')}</div><p>${t('notMastery')}</p>`:`<p>${t('noPractice')}</p><button class="primary-button" data-view="match">${t('practiceNow')}${icon('arrow')}</button>`}</section>
+    <section class="record-panel"><h2>${t('mistakes')}</h2>${mistakes.length?`<div class="character-chips">${mistakes.map(({c,n})=>`<button class="character-chip" data-detail="${c.id}">${escape(glyph(c))}<small>× ${n}</small></button>`).join('')}</div><p>${t('mistakeNote')}</p><button class="quiet-button" data-action="review-mistakes">${icon('refresh')}${t('practiceMistakes')}</button>`:`<p>${t('noMistakes')}</p>`}</section>
+    <section class="record-panel"><h2>${t('recent')}</h2>${progress.sessions.length ? [...progress.sessions].reverse().slice(0,15).map(s=>`<div class="history-row"><div>${t('session',{n:s.characterIds.length,a:s.attempts})}<small>${new Date(s.completedAt).toLocaleString(language==='zh'?'zh-CN':language)} · ${s.seconds} ${t('seconds')}</small></div><b>${s.characterIds.map(id=>glyph(byId(id))).join(' ')}</b></div>`).join('') : `<p>${t('historyEmpty')}</p>`}</section><section class="record-panel"><label for="goal-select" style="font-size:12px;margin-right:10px">${t('goal')}</label><select class="goal-select" id="goal-select">${[4,8,12].map(n=>`<option value="${n}" ${progress.dailyGoal===n?'selected':''}>${t('goalOption',{n})}</option>`).join('')}</select></section><section class="record-panel language-settings-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')} ${t('chooseLanguage')} · ${LANGUAGE_NAMES[language]}</button></section>${mobileMarkup()}`;
 }
 function renderSources() {
-  $('#view-content').innerHTML = `<section class="view-heading"><div><h1>${t('sourcesTitle')}</h1><p>${t('sourcesSub')}</p></div></section><div class="source-list"><section class="record-panel"><h2>${t('provided')}</h2><p>${t('providedText')}</p><div class="character-chips">${characters.map(c=>`<button class="character-chip" data-detail="${c.id}">${c.hanzi}<small>P.${c.pptSlide}</small></button>`).join('')}</div></section><section class="record-panel"><h2>${t('authority')}</h2><p>${t('authorityText')}</p><div class="source-links">${characters.map(c=>`<a href="${escape(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${c.hanzi} ↗</a>`).join('')}</div></section><section class="record-panel"><h2>${t('boundaries')}</h2><ul>${[1,2,3,4].map(n=>`<li>${t('boundary'+n)}</li>`).join('')}</ul></section><section class="record-panel"><h2>${t('ai')}</h2><p>${t('aiText')}</p></section></div>`;
+  $('#view-content').innerHTML = `<section class="view-heading"><div><h1>${t('sourcesTitle')}</h1><p>${t('sourcesSub')}</p></div></section><div class="source-list"><section class="record-panel"><h2>${t('provided')}</h2><p>${t('providedText')}</p><div class="character-chips">${characters.map(c=>`<button class="character-chip" data-detail="${c.id}">${escape(glyph(c))}<small>${c.pptSlide?'P.'+c.pptSlide:t('detail')}</small></button>`).join('')}</div></section><section class="record-panel"><h2>${t('authority')}</h2><p>${t('authorityText')}</p><div class="source-links">${characters.map(c=>`<a href="${escape(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escape(glyph(c))} ↗</a>`).join('')}</div></section><section class="record-panel"><h2>${t('boundaries')}</h2><ul>${[1,2,3,4].map(n=>`<li>${t('boundary'+n)}</li>`).join('')}</ul></section><section class="record-panel"><h2>${t('ai')}</h2><p>${t('aiText')}</p></section></div>`;
 }
 function renderDownloadInfo() {
   const region = $('#android-release');
@@ -288,11 +317,11 @@ async function checkDownload() {
 function renderSettings() {
   const features=[['Match','grid'],['Language','globe'],['Progress','chart'],['Offline','phone']];
   $('#view-content').innerHTML=`<section class="view-heading"><div><h1>${t('settingsTitle')}</h1><p>${t('settingsSub')}</p></div></section>
-    <div class="settings-grid"><section class="record-panel android-panel"><h2>${icon('phone')}${t('androidTitle')}</h2><p>${t(nativeApp()?'androidNative':'androidLead')}</p>${nativeApp()?`<a class="primary-button" href="${escape(accountWebsiteLink(language))}" rel="noopener noreferrer">${t('openWebsite')}${icon('arrow')}</a>`:'<div id="android-release" aria-live="polite"></div>'}<p>${t('androidScope')}</p></section>
+    <div class="settings-grid"><section class="record-panel android-panel"><h2>${icon('phone')}${t('androidTitle')}</h2><p>${t(nativeApp()?'androidNative':'androidLead')}</p>${nativeApp()?`<a class="primary-button" href="${escape(accountWebsiteLink(language))}" rel="noopener noreferrer">${t('openWebsite')}${icon('arrow')}</a>`:'<div id="android-release" aria-live="polite"></div>'}<p>${t('androidScope',libraryCounts())}</p></section>
     <section class="record-panel"><h2>${t('androidInstallTitle')}</h2><ol class="install-steps"><li>${t('androidStep1')}</li><li>${t('androidStep2')}</li><li>${t('androidStep3')}</li></ol></section></div>
     <section class="feature-intro"><div><small>${t('featureLabel')}</small><h2>${t('featureTitle')}</h2><p>${t('featureLead')}</p><button class="primary-button" data-view="match">${t('practiceNow')}${icon('arrow')}</button></div><div class="feature-symbols" aria-hidden="true"><span>山</span><span>月</span><span>木</span></div></section>
     <div class="feature-grid">${features.map(([name,i])=>`<article>${icon(i)}<h3>${t('feature'+name+'Title')}</h3><p>${t('feature'+name+'Text')}</p></article>`).join('')}</div><p class="feature-note">${t('featureNote')}</p>
-    ${mobileMarkup()}<section class="record-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')}${LANGUAGE_NAMES[language]}</button></section>
+    <section class="record-panel"><h2>${t('matchPreferences')}</h2><p>${t('matchPreferenceNote')}</p>${matchSettingsMarkup()}<p>${t('sameFormsNote')}</p></section>${mobileMarkup()}<section class="record-panel"><h2>${t('languageSettings')}</h2><p>${t('languagePreferenceNote')}</p><button class="secondary-button" data-action="language-settings">${icon('globe')}${LANGUAGE_NAMES[language]}</button></section>
     <section class="record-panel"><h2>${t('supportTitle')}</h2><p>${t('supportRecords')}</p><p>${t('supportSpeech')}</p><button class="secondary-button" data-action="export">${icon('export')}${t('export')}</button></section>
     <section class="record-panel share-panel"><h2>${t('shareWebsite')}</h2><p>${t('copyLinkHelp')}</p><div class="share-actions"><button class="primary-button" data-action="share-website">${icon('arrow')}${t('shareWebsite')}</button><button class="secondary-button" data-action="copy-website">${t('copyWebsite')}</button></div><a class="share-link" href="${escape(websiteLink(language))}">${escape(websiteLink(language))}</a></section>`;
   renderDownloadInfo();
@@ -333,11 +362,23 @@ function openModal(titleKey, content) {
 }
 function showDetail(id) {
   const c = byId(id); if (!c) return;
-  const caseText = language==='zh'?c.caseExplanation:language==='es'?c.caseExplanationEs:c.caseExplanationEn;
-  openModal('detail', `<div class="detail-pinyin"><span>${c.pinyin} · ${escape(meaning(c))}</span><button data-speak="${c.id}" aria-label="${t('speak')}">${icon('sound')}</button></div><div class="detail-timeline"><div class="detail-step"><img src="${escape(appUrl(c.picture))}" alt="${escape(meaning(c))}"><small>${t('picture')}</small></div><span class="timeline-arrow">→</span><div class="detail-step"><img src="${escape(appUrl(c.ancient))}" alt="${t('ancient')} · ${c.hanzi}"><small>${t('ancient')}</small></div><span class="timeline-arrow">→</span><div class="detail-step"><div class="hanzi" lang="zh">${c.hanzi}</div><small>${t('modern')}</small></div></div><p class="source-small">${t('notTimeline')}</p><p class="detail-description">${escape(description(c))}</p>${caseText?`<div class="detail-source"><strong>${escape(localized(c,'caseTitle') || t('case'))}</strong><span class="case-badge">${t(c.caseType||'mnemonic')}</span><br>${escape(caseText)}</div>`:''}<div class="detail-source" style="margin-top:12px"><strong>${t('warning')}</strong><br>${c.id==='water'?t('waterWarning'):t('warningText')}${c.contentWarning&&c.id!=='water'?`<br>${escape(language==='zh'?c.contentWarning:(language==='es'?c.contentWarningEs:c.contentWarningEn)||t('warningText'))}`:''}<br><span>${t('pptPage',{n:c.pptSlide})}</span><a href="${escape(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escape(localized(c,'sourceTitle') || c.sourceTitle)} ↗</a><small>${t('reviewRequired')}</small></div><div class="modal-actions"><button class="secondary-button" data-favorite="${c.id}" aria-pressed="${progress.favorites.includes(id)}">${icon('star')}${progress.favorites.includes(id)?t('unfavorite'):t('favorite')}</button><button class="primary-button" data-action="close">${t('continue')}${icon('arrow')}</button></div>`);
+  const caseText = localized(c,'caseExplanation');
+  const historical = localized(c,'historicalExplanation');
+  const mnemonic = localized(c,'mnemonicExplanation');
+  const relation = localized(c,'simplificationStory');
+  const written = isQuad()?['simplified','traditional']:[matchPreferences.script];
+  const credits = (c.assets||[]).filter(a=>a.attributionText||a.sourcePageUrl||a.licenseStatus);
+  openModal('detail', `<div class="detail-pinyin"><span>${c.pinyin} · ${escape(meaning(c))}</span><button data-speak="${c.id}" aria-label="${t('speak')}">${icon('sound')}</button></div>
+    <div class="detail-timeline ${isQuad()?'quad-detail':''}"><div class="detail-step"><img src="${escape(appUrl(c.picture))}" alt="${escape(meaning(c))}"><small>${t('picture')}</small></div><span class="timeline-arrow">↔</span><div class="detail-step"><img src="${escape(appUrl(c.ancient))}" alt="${escape(localized(c,'ancientLabel')||t('ancient'))}"><small>${t('ancient')}</small></div>${written.map(script=>`<span class="timeline-arrow">↔</span><div class="detail-step"><div class="hanzi" lang="${formLang(script)}">${escape(glyph(c,script))}</div><small>${t(script)}</small></div>`).join('')}</div>
+    <p class="source-small">${t('notTimeline')}</p><div class="script-pair"><span lang="zh-Hans">${escape(glyph(c,'simplified'))}</span><span>↔</span><span lang="zh-Hant">${escape(glyph(c,'traditional'))}</span><small>${t(sameForms(c)?'sameForms':'differentForms')}</small></div>
+    <p class="detail-description">${escape(description(c))}</p>${historical?`<section class="detail-source story-section"><strong>${t('referenceStory')}</strong><p>${escape(historical)}</p></section>`:''}${mnemonic?`<section class="detail-source story-section"><strong>${t('mnemonicStory')}</strong><p>${escape(mnemonic)}</p></section>`:''}${relation?`<section class="detail-source story-section"><strong>${t('simplificationStory')}</strong><p>${escape(relation)}</p></section>`:''}
+    ${caseText?`<div class="detail-source"><strong>${escape(localized(c,'caseTitle') || t('case'))}</strong><span class="case-badge">${t(c.caseType||'mnemonic')}</span><br>${escape(caseText)}</div>`:''}
+    <div class="detail-source" style="margin-top:12px"><strong>${t('warning')}</strong><br>${c.id==='water'?t('waterWarning'):escape(localized(c,'ancientLabel')||t('warningText'))}${c.contentWarning&&c.id!=='water'?`<br>${escape(localized(c,'contentWarning')||t('warningText'))}`:''}<br><span>${escape(sourceLine(c))}</span><a href="${escape(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escape(localized(c,'sourceTitle') || c.sourceTitle)} ↗</a><small>${escape(localized(c,'reviewScope')||t('reviewRequired'))}</small></div>
+    ${credits.length?`<details class="asset-credits"><summary>${t('originLabel')}</summary>${credits.map(a=>`<p><b>${t(a.role==='form'?'ancient':a.role)}</b> · ${escape(a.attributionText||a.sourceTitle||'')}<br>${escape(a.licenseStatus||'')}${a.sourcePageUrl?` · <a href="${escape(a.sourcePageUrl)}" target="_blank" rel="noopener noreferrer">${t('openSource')} ↗</a>`:''}</p>`).join('')}</details>`:''}
+    <div class="modal-actions"><button class="secondary-button" data-favorite="${c.id}" aria-pressed="${progress.favorites.includes(id)}">${icon('star')}${progress.favorites.includes(id)?t('unfavorite'):t('favorite')}</button><button class="primary-button" data-action="close">${t('continue')}${icon('arrow')}</button></div>`);
 }
 function showGuide() {
-  openModal('guideTitle', `<p class="modal-lead">${t('guideLead')}</p><div class="guide-steps">${[1,2,3].map(n=>`<div class="guide-step"><b>0${n}</b><strong>${t('step'+n)}</strong>${t('step'+n+'Text')}</div>`).join('')}</div><p class="modal-lead">${t('guideNote')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('start')}${icon('arrow')}</button></div>`);
+  openModal('guideTitle', `<p class="modal-lead">${t(isQuad()?'guideLeadQuad':'guideLead')}</p><div class="guide-steps">${(isQuad()?[1,2,3,4]:[1,2,3]).map(n=>`<div class="guide-step"><b>0${n}</b><strong>${t(n===3&&isQuad()?'simplified':'step'+n)}</strong>${t(n===3&&isQuad()?'quadStep3Text':'step'+n+'Text')}</div>`).join('')}</div><p class="modal-lead">${t('guideNote')}</p><div class="modal-actions"><button class="primary-button" data-action="close">${t('start')}${icon('arrow')}</button></div>`);
 }
 function showHint() {
   const hint = hintFor(game); if (!hint) return;
@@ -356,14 +397,14 @@ function toggleFavorite(id) {
   const had = progress.favorites.includes(id); progress.favorites = had ? progress.favorites.filter(x=>x!==id) : [...progress.favorites,id];
   saveProgress(); toast(t(had?'removed':'added'));
   document.querySelectorAll(`[data-favorite="${id}"]`).forEach(button=>{
-    button.classList.toggle('on',!had); button.setAttribute('aria-pressed',String(!had)); button.setAttribute('aria-label',`${t(had?'favorite':'unfavorite')} · ${byId(id).hanzi}`);
+    button.classList.toggle('on',!had); button.setAttribute('aria-pressed',String(!had)); button.setAttribute('aria-label',`${t(had?'favorite':'unfavorite')} · ${escape(glyph(byId(id)))}`);
     if (button.closest('dialog')) button.innerHTML=`${icon('star')}${t(had?'favorite':'unfavorite')}`;
   });
   if (view==='atlas' && filter==='favorites') renderAtlasCards();
 }
 function speak(id) {
   if (nativeApp()) {
-    try {if (!window.HanziAndroid?.speak(byId(id).hanzi)) toast(t('voiceMissing'));}
+    try {if (!window.HanziAndroid?.speak(glyph(byId(id)))) toast(t('voiceMissing'));}
     catch {toast(t('pronunciationUnavailable'));}
     return;
   }
@@ -371,7 +412,7 @@ function speak(id) {
   const voices = speechSynthesis.getVoices();
   const voice = voices.find(v=>/^zh(-CN|_CN|$)/i.test(v.lang)) || voices.find(v=>/^zh/i.test(v.lang));
   if (!voice) return toast(t('voiceMissing'));
-  const utterance = new SpeechSynthesisUtterance(byId(id).hanzi); utterance.lang='zh-CN'; utterance.voice=voice; utterance.rate=.75;
+  const utterance = new SpeechSynthesisUtterance(glyph(byId(id))); utterance.lang='zh-CN'; utterance.voice=voice; utterance.rate=.75;
   utterance.onerror=()=>toast(t('speechUnavailable')); speechSynthesis.cancel(); speechSynthesis.speak(utterance);
 }
 function showAccount(mode = 'login') {
@@ -460,6 +501,8 @@ window.addEventListener('popstate',event=>{
   if (url.searchParams.has('lang') && url.searchParams.get('lang')!==language) {
     url.searchParams.set('lang',language);history.replaceState(state,'',url);
   }
+  for(const name of ['mode','script'])if(url.searchParams.has(name))url.searchParams.set(name,matchPreferences[name]);
+  history.replaceState(history.state,'',url);
   if (modal.open) modal.close();
   // Forward navigation restores the view; dismissed dialog contents are ephemeral.
   if (state.ziyuDialog) history.replaceState({...state,ziyuDialog:false,ziyuTransient:false},'',location.href);
@@ -490,6 +533,8 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('input',event=>{if(event.target.id==='search'){search=event.target.value;renderAtlasCards();}});
 document.addEventListener('change',event=>{
+  if(event.target.id==='match-mode')setMatchPreference('mode',event.target.value);
+  if(event.target.id==='match-script')setMatchPreference('script',event.target.value);
   if(event.target.id==='language') setLanguage(event.target.value);
   if(event.target.id==='goal-select'){progress.dailyGoal=Number(event.target.value);saveProgress();}
 });
@@ -498,7 +543,13 @@ modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.ge
 
 async function init() {
   const response=await fetch(appUrl('data/characters.json')); if(!response.ok)throw new Error('Unable to load character library');
-  characters=await response.json(); progress=readGuest(); language=initialLanguage(progress.language);
+  characters=await response.json();
+  try {matchPreferences=normalizeMatchPreferences(JSON.parse(localStorage.getItem(MATCH_PREFERENCES_KEY)));}catch{}
+  const linkedPreferences=new URLSearchParams(location.search);
+  if(['triple','quad'].includes(linkedPreferences.get('mode')))matchPreferences.mode=linkedPreferences.get('mode');
+  if(['simplified','traditional'].includes(linkedPreferences.get('script')))matchPreferences.script=linkedPreferences.get('script');
+  if(Object.hasOwn(LESSONS,linkedPreferences.get('lesson')))lesson=linkedPreferences.get('lesson');
+  progress=readGuest(); language=initialLanguage(progress.language);
   try {
     const linked = new URLSearchParams(location.search).get('lang');
     if (isLanguage(linked)) localStorage.setItem(LANGUAGE_KEY,linked);

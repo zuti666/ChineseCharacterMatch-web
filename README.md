@@ -2,7 +2,7 @@
 
 [English](https://zuti666.github.io/ChineseCharacterMatch-web/?lang=en) · [Español](https://zuti666.github.io/ChineseCharacterMatch-web/?lang=es)
 
-Connect a picture, a teaching sketch, and a modern Chinese character. The prototype includes matching rounds, a character atlas, favorites, local progress, and English, Spanish, and Chinese explanations.
+Explore 34 learning targets with pictures, teaching forms, pinyin, and stories. Choose simplified or traditional characters in three-card rounds, or connect both scripts in four-card rounds. The prototype includes an atlas, favorites, local progress, and English, Spanish, and Chinese explanations.
 
 ## Mobile website and app
 
@@ -14,10 +14,10 @@ This GitHub Pages site saves guest records in the current browser. The [cloud ac
 
 ## Published contents
 
-`site/` is the public website payload; `.github/workflows/pages.yml` deploys it to GitHub Pages. The payload includes the production 13-character library, its 26 selected pictures, PWA resources, release metadata, and the one approved Android trial package.
+`site/` is the public website payload; `.github/workflows/pages.yml` deploys it to GitHub Pages. The payload includes the explicitly approved production library and its selected pictures, the public content approval manifest, PWA resources, release metadata, and the one approved Android trial package.
 
 Original PPT files, the private review batch, Python backend, user databases, account records, development files, and signing keys remain outside this public repository. Teaching sketches are not authenticated archaeological specimens; source and review notes appear in the app.
 
 The public files are generated from the private source project. Make changes in that source and sync them through the existing publishing workflow.
 
-静态构建来源版本：`7d53597f99f51f487d81c1cc611e270bbaf704d3`。
+静态构建来源版本：`1af32b7517f9568e9af2f963bc6c63c040340e29`。

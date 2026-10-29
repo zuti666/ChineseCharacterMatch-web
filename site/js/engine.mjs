@@ -1,4 +1,5 @@
-export const TYPES = ['picture', 'ancient', 'modern'];
+export const TYPES = Object.freeze(['picture', 'ancient', 'modern']);
+export const QUAD_TYPES = Object.freeze(['picture', 'ancient', 'simplified', 'traditional']);
 
 export function shuffle(items, random = Math.random) {
   const result = [...items];
@@ -9,12 +10,21 @@ export function shuffle(items, random = Math.random) {
   return result;
 }
 
-export function createRound(characters, random = Math.random) {
+export function createRound(characters, random = Math.random, options = {}) {
+  if (!options || typeof options !== 'object' || Array.isArray(options) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(options)) ||
+      Object.keys(options).some(key => key !== 'types')) throw new Error('Invalid round options');
+  const requested = options.types === undefined ? TYPES : options.types;
+  if (!Array.isArray(requested) || ![TYPES, QUAD_TYPES].some(allowed =>
+      requested.length === allowed.length && allowed.every((type, index) => requested[index] === type))) {
+    throw new Error('A round requires the triple or quadruple card columns');
+  }
+  const types = [...requested];
   const ids = characters.map(c => c.id);
   if (new Set(ids).size !== ids.length || !ids.length) throw new Error('A round requires unique character IDs');
-  const columns = TYPES.map(type => shuffle(ids, random).map(id => ({key: `${id}:${type}`, id, type})));
+  const columns = types.map(type => shuffle(ids, random).map(id => ({key: `${id}:${type}`, id, type})));
   const cards = ids.flatMap((_, row) => columns.map(column => column[row]));
-  return {cards, ids, selected: [], matched: [], attempts: 0, correct: 0, hints: 0, locked: false};
+  return {cards, ids, types, selected: [], matched: [], attempts: 0, correct: 0, hints: 0, locked: false};
 }
 
 export function selectCard(round, key) {
@@ -25,7 +35,7 @@ export function selectCard(round, key) {
     return {round: {...round, selected: round.selected.filter(k => k !== key)}, kind: 'deselected'};
   }
   const selected = round.selected.filter(k => round.cards.find(c => c.key === k).type !== card.type).concat(key);
-  if (selected.length < 3) return {round: {...round, selected}, kind: 'selected'};
+  if (selected.length < (round.types || TYPES).length) return {round: {...round, selected}, kind: 'selected'};
   const same = selected.every(k => round.cards.find(c => c.key === k).id === card.id);
   return {round: {...round, selected, locked: true, attempts: round.attempts + 1,
     correct: round.correct + (same ? 1 : 0), matched: same ? [...round.matched, card.id] : round.matched},
@@ -59,7 +69,9 @@ export function normalizeProgress(value, validIds) {
       Number.isInteger(s.correct) && s.correct >= 0 && s.correct <= 10000 && Number.isInteger(s.attempts) && s.attempts >= s.correct && s.attempts <= 10000 &&
       Number.isInteger(s.seconds) && s.seconds >= 0 && s.seconds <= 86400 && typeof s.completedAt === 'string' &&
       /(?:Z|[+-]\d{2}:\d{2})$/.test(s.completedAt) && !Number.isNaN(Date.parse(s.completedAt))).map(s => [s.id, {
-        id:s.id,completedAt:s.completedAt,correct:s.correct,attempts:s.attempts,seconds:s.seconds,characterIds:[...s.characterIds]
+        id:s.id,completedAt:s.completedAt,correct:s.correct,attempts:s.attempts,seconds:s.seconds,characterIds:[...s.characterIds],
+        ...(['triple', 'quad'].includes(s.matchMode) ? {matchMode:s.matchMode} : {}),
+        ...(['simplified', 'traditional'].includes(s.script) ? {script:s.script} : {})
       }])).values()].slice(-200) : [],
     dailyGoal: [4, 8, 12].includes(value.dailyGoal) ? value.dailyGoal : 4,
     language: ['zh', 'en', 'es'].includes(value.language) ? value.language : 'zh'};

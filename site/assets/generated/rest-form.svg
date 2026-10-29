@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="260" viewBox="0 0 280 260" role="img" aria-label="现代人形部件和木形部件并列的教学示意">
+  <title>现代构件示意：左侧人形，右侧树形</title>
+  <rect width="280" height="260" rx="12" fill="#fbf7e9"/>
+  <g fill="none" stroke="#273a31" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M98 48 Q82 88 45 119 M78 88 L78 215"/>
+    <path d="M175 46 L175 218 M119 109 L236 109 M175 109 Q152 157 111 194 M175 109 Q200 160 241 195"/>
+  </g>
+</svg>
