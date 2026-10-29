@@ -24,4 +24,4 @@ Original PPT files, the private review batch, Python backend, user databases, ac
 
 The public files are generated from the private source project. Make changes in that source and sync them through the existing publishing workflow.
 
-静态构建来源版本：`14360b57b152e8a23178889dc0014eaeb7355e36`。
+静态构建来源版本：`3b043a2e11f560255cd200005271f3b3f6ded26c`。
